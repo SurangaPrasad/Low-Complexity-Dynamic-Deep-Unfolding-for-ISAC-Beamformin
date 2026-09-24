@@ -134,53 +134,49 @@ if run_program == 1:
         print('Running conventional PGA with J = 1...')
         model_conv_PGA_J1 = PGA_Unfold_JX(step_size_UPGA_J1)  # Reuse the same shape of step sizes as J1
         register_step_size('Conv PGA (J=1)', model_conv_PGA_J1.step_size)
-        rate_conv_PGA_J1, crb_conv_PGA_J1, power_conv_PGA_J1, F_conv_PGA_J1, W_conv_PGA_J1, gradient_norm_history_conv_PGA_J1, gradient_norm_history_conv_PGA_J1_W = model_conv_PGA_J1.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        rate_conv_PGA_J1, crb_conv_PGA_J1, F_conv_PGA_J1, W_conv_PGA_J1 = model_conv_PGA_J1.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                              n_iter_inner_J1)  # Use n_iter_inner_J1 as J=1
-        rate_iter_conv_PGA_J1  = rate_conv_PGA_J1.mean(0).cpu().numpy()
-        crb_iter_conv_PGA_J1   = crb_conv_PGA_J1.mean(0).cpu().numpy()
-        power_iter_conv_PGA_J1 = power_conv_PGA_J1.mean(0).cpu().numpy()
+        rate_iter_conv_PGA_J1  = rate_conv_PGA_J1.squeeze().cpu().numpy()
+        crb_iter_conv_PGA_J1   = crb_conv_PGA_J1.squeeze().cpu().numpy()
     
     # ====================================================== Conv. PGA with J = 5 ====================================
     if run_conv_PGA_J5 == 1:
         print('Running conventional PGA with J = 5...')
         model_conv_PGA_J5 = PGA_Unfold_JX(step_size_UPGA_J5)  # Reuse the same shape of step sizes as J5
         register_step_size('Conv PGA (J=5)', model_conv_PGA_J5.step_size)
-        rate_conv_PGA_J5, crb_conv_PGA_J5, power_conv_PGA_J5, F_conv_PGA_J5, W_conv_PGA_J5, gradient_norm_history_conv_PGA_J5, gradient_norm_history_conv_PGA_J5_W = model_conv_PGA_J5.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
-                                                                                             snr,
-                                                                                             n_iter_outer,
-                                                                                             n_iter_inner_J5)  # Use n_iter_inner_J5 as J=5
-        rate_iter_conv_PGA_J5  = rate_conv_PGA_J5.mean(0).cpu().numpy()
-        crb_iter_conv_PGA_J5   = crb_conv_PGA_J5.mean(0).cpu().numpy()
-        power_iter_conv_PGA_J5 = power_conv_PGA_J5.mean(0).cpu().numpy()
+        rate_conv_PGA_J5, crb_conv_PGA_J5, F_conv_PGA_J5, W_conv_PGA_J5 = model_conv_PGA_J5.execute_PGA(H_test, xi_0, A_dot, R_N_inv, snr, n_iter_outer, n_iter_inner_J5)  # Use n_iter_inner_J5 as J=5
+
+        rate_iter_conv_PGA_J5  = rate_conv_PGA_J5.squeeze().cpu().numpy()
+        crb_iter_conv_PGA_J5   = crb_conv_PGA_J5.squeeze().cpu().numpy()
+
+        print(f'Conv PGA (J=5) rate_iter_conv_PGA_J5 shape: {rate_iter_conv_PGA_J5.shape}')
 
     # ====================================================== Conv. PGA with J = 10 ====================================
     if run_conv_PGA_J10 == 1:
         print('Running conventional PGA with J = 10...')
         model_conv_PGA_J10 = PGA_Unfold_JX(step_size_UPGA_J10)
         register_step_size('Conv PGA (J=10)', model_conv_PGA_J10.step_size)
-        rate_conv_PGA_J10, crb_conv_PGA_J10, power_conv_PGA_J10, F_conv_PGA_J10, W_conv_PGA_J10, gradient_norm_history_conv_PGA_J10, gradient_norm_history_conv_PGA_J10_W = model_conv_PGA_J10.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        rate_conv_PGA_J10, crb_conv_PGA_J10, F_conv_PGA_J10, W_conv_PGA_J10 = model_conv_PGA_J10.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                              n_iter_inner_J10)
         # rate_conv_PGA_J10: (B, n_outer*(J+1))  — average over batch
-        rate_iter_conv_PGA_J10  = rate_conv_PGA_J10.mean(0).cpu().numpy()
-        crb_iter_conv_PGA_J10   = crb_conv_PGA_J10.mean(0).cpu().numpy()
-        power_iter_conv_PGA_J10 = power_conv_PGA_J10.mean(0).cpu().numpy()
+        rate_iter_conv_PGA_J10  = rate_conv_PGA_J10.squeeze().cpu().numpy()
+        crb_iter_conv_PGA_J10   = crb_conv_PGA_J10.squeeze().cpu().numpy()
 
     # ====================================================== Conv. PGA with J = 20 ====================================
     if run_conv_PGA_J20 == 1:
         print('Running conventional PGA with J = 20...')
         model_conv_PGA_J20 = PGA_Unfold_JX(step_size_UPGA_J20)
         register_step_size('Conv PGA (J=20)', model_conv_PGA_J20.step_size)
-        rate_conv_PGA_J20, crb_conv_PGA_J20, power_conv_PGA_J20, F_conv_PGA_J20, W_conv_PGA_J20, gradient_norm_history_conv_PGA_J20, gradient_norm_history_conv_PGA_J20_W = model_conv_PGA_J20.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        rate_conv_PGA_J20, crb_conv_PGA_J20, F_conv_PGA_J20, W_conv_PGA_J20 = model_conv_PGA_J20.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                              n_iter_inner_J20)
-        rate_iter_conv_PGA_J20 = rate_conv_PGA_J20.mean(0).cpu().numpy()
-        crb_iter_conv_PGA_J20  = crb_conv_PGA_J20.mean(0).cpu().numpy()
-        power_iter_conv_PGA_J20 = power_conv_PGA_J20.mean(0).cpu().numpy()
+        rate_iter_conv_PGA_J20 = rate_conv_PGA_J20.squeeze().cpu().numpy()
+        crb_iter_conv_PGA_J20  = crb_conv_PGA_J20.squeeze().cpu().numpy()
 
     # ====================================================== Proposed Unfolded PGA light ====================================
     if run_UPGA_J1 == 1:
@@ -190,13 +186,12 @@ if run_program == 1:
         model_UPGA_J1.load_state_dict(torch.load(model_file_name_UPGA_J1, map_location=device))
         register_step_size('UPGA (J=1)', model_UPGA_J1.step_size)
 
-        sum_rate_UPGA_J1, crb_UPGA_J1, power_UPGA_J1, F_UPGA_J1, W_UPGA_J1, gradient_norm_history_UPGA_J1, gradient_norm_history_UPGA_J1_W = model_UPGA_J1.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J1, crb_UPGA_J1, F_UPGA_J1, W_UPGA_J1 = model_UPGA_J1.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                              n_iter_inner_J1)
-        rate_iter_UPGA_J1  = sum_rate_UPGA_J1.mean(0).cpu().numpy()
-        crb_iter_UPGA_J1   = crb_UPGA_J1.mean(0).cpu().numpy()
-        power_iter_UPGA_J1 = power_UPGA_J1.mean(0).cpu().numpy()
+        rate_iter_UPGA_J1  = sum_rate_UPGA_J1.squeeze().cpu().numpy()
+        crb_iter_UPGA_J1   = crb_UPGA_J1.squeeze().cpu().numpy()
 
     if run_UPGA_J4 == 1:
         print('Running unfolded PGA with J = 4...')
@@ -204,13 +199,12 @@ if run_program == 1:
         model_UPGA_J4 = PGA_Unfold_JX(step_size_UPGA_J4)
         model_UPGA_J4.load_state_dict(torch.load(directory_model + f'UPGA_J4.pth', map_location=device))
         register_step_size('UPGA (J=4)', model_UPGA_J4.step_size)
-        sum_rate_UPGA_J4, crb_UPGA_J4, power_UPGA_J4, F_UPGA_J4, W_UPGA_J4, gradient_norm_history_UPGA_J4, gradient_norm_history_UPGA_J4_W = model_UPGA_J4.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J4, crb_UPGA_J4, F_UPGA_J4, W_UPGA_J4 = model_UPGA_J4.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                              n_iter_inner_J4)
-        rate_iter_UPGA_J4  = sum_rate_UPGA_J4.mean(0).cpu().numpy()
-        crb_iter_UPGA_J4   = crb_UPGA_J4.mean(0).cpu().numpy()
-        power_iter_UPGA_J4 = power_UPGA_J4.mean(0).cpu().numpy()
+        rate_iter_UPGA_J4  = sum_rate_UPGA_J4.squeeze().cpu().numpy()
+        crb_iter_UPGA_J4   = crb_UPGA_J4.squeeze().cpu().numpy()
     
     if run_UPGA_J5 == 1:
         print('Running unfolded PGA with J = 5...')
@@ -219,13 +213,12 @@ if run_program == 1:
         model_UPGA_J5.load_state_dict(torch.load(model_file_name_UPGA_J5, map_location=device))
         register_step_size('UPGA (J=5)', model_UPGA_J5.step_size)
 
-        sum_rate_UPGA_J5, crb_UPGA_J5, power_UPGA_J5, F_UPGA_J5, W_UPGA_J5, gradient_norm_history_UPGA_J5, gradient_norm_history_UPGA_J5_W = model_UPGA_J5.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J5, crb_UPGA_J5, F_UPGA_J5, W_UPGA_J5= model_UPGA_J5.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                              n_iter_inner_J5)
-        rate_iter_UPGA_J5  = sum_rate_UPGA_J5.mean(0).cpu().numpy()
-        crb_iter_UPGA_J5   = crb_UPGA_J5.mean(0).cpu().numpy()
-        power_iter_UPGA_J5 = power_UPGA_J5.mean(0).cpu().numpy()
+        rate_iter_UPGA_J5  = sum_rate_UPGA_J5.squeeze().cpu().numpy()
+        crb_iter_UPGA_J5   = crb_UPGA_J5.squeeze().cpu().numpy()
     
     if run_UPGA_J6 == 1:
         print('Running unfolded PGA with J = 6...')
@@ -233,13 +226,12 @@ if run_program == 1:
         model_UPGA_J6 = PGA_Unfold_JX(step_size_UPGA_J6)
         model_UPGA_J6.load_state_dict(torch.load(directory_model + f'UPGA_J6.pth', map_location=device))
         register_step_size('UPGA (J=6)', model_UPGA_J6.step_size)
-        sum_rate_UPGA_J6, crb_UPGA_J6, power_UPGA_J6, F_UPGA_J6, W_UPGA_J6, gradient_norm_history_UPGA_J6, gradient_norm_history_UPGA_J6_W = model_UPGA_J6.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J6, crb_UPGA_J6, F_UPGA_J6, W_UPGA_J6 = model_UPGA_J6.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
                                                                                                 snr,
                                                                                                 n_iter_outer,
                                                                                                 n_iter_inner_J6)
-        rate_iter_UPGA_J6  = sum_rate_UPGA_J6.mean(0).cpu().numpy()
-        crb_iter_UPGA_J6   = crb_UPGA_J6.mean(0).cpu().numpy()
-        power_iter_UPGA_J6 = power_UPGA_J6.mean(0).cpu().numpy()
+        rate_iter_UPGA_J6  = sum_rate_UPGA_J6.squeeze().cpu().numpy()
+        crb_iter_UPGA_J6   = crb_UPGA_J6.squeeze().cpu().numpy()
 
     # ====================================================== Proposed Unfolded PGA light ====================================
     if run_UPGA_J10 == 1:
@@ -249,14 +241,13 @@ if run_program == 1:
         model_UPGA_J10.load_state_dict(torch.load(model_file_name_UPGA_J10, map_location=device))
         register_step_size('UPGA (J=10)', model_UPGA_J10.step_size)
 
-        sum_rate_UPGA_J10, crb_UPGA_J10, power_UPGA_J10, F_UPGA_J10, W_UPGA_J10, gradient_norm_history_UPGA_J10, gradient_norm_history_UPGA_J10_W = model_UPGA_J10.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J10, crb_UPGA_J10, F_UPGA_J10, W_UPGA_J10 = model_UPGA_J10.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                             n_iter_inner_J10)
         # print(f'Shape of the sum_rate_UPGA_J10: {sum_rate_UPGA_J10.shape}')
-        rate_iter_UPGA_J10  = sum_rate_UPGA_J10.mean(0).cpu().numpy()
-        crb_iter_UPGA_J10   = crb_UPGA_J10.mean(0).cpu().numpy()
-        power_iter_UPGA_J10 = power_UPGA_J10.mean(0).cpu().numpy()
+        rate_iter_UPGA_J10  = sum_rate_UPGA_J10.squeeze().cpu().numpy()
+        crb_iter_UPGA_J10   = crb_UPGA_J10.squeeze().cpu().numpy()
 
     # ====================================================== Proposed Unfolded PGA ====================================
     if run_UPGA_J20 == 1:
@@ -266,28 +257,12 @@ if run_program == 1:
         model_UPGA_J20.load_state_dict(torch.load(model_file_name_UPGA_J20, map_location=device))
         register_step_size('UPGA (J=20)', model_UPGA_J20.step_size)
 
-        sum_rate_UPGA_J20, crb_UPGA_J20,power_UPGA_J20, F_UPGA_J20, W_UPGA_J20, gradient_norm_history_UPGA_J20, gradient_norm_history_UPGA_J20_W = model_UPGA_J20.execute_PGA(H_test, xi_0, A_dot, R_N_inv, snr,
+        sum_rate_UPGA_J20, crb_UPGA_J20, F_UPGA_J20, W_UPGA_J20 = model_UPGA_J20.execute_PGA(H_test, xi_0, A_dot, R_N_inv, snr,
                                                                                              n_iter_outer,
                                                                                              n_iter_inner_J20)
-        rate_iter_UPGA_J20 = sum_rate_UPGA_J20.mean(0).cpu().numpy()
-        crb_iter_UPGA_J20  = crb_UPGA_J20.mean(0).cpu().numpy()
-        power_iter_UPGA_J20 = power_UPGA_J20.mean(0).cpu().numpy()
+        rate_iter_UPGA_J20 = sum_rate_UPGA_J20.squeeze().cpu().numpy()
+        crb_iter_UPGA_J20  = crb_UPGA_J20.squeeze().cpu().numpy()
     
-    # ====================================================== Propsed Unofolded PGA with PRCDN ====================================
-
-    if run_UPGA_J10_PRCDN:
-        print('Running unfolded PGA with J = 10 and PRCDN...')
-        # Create new model and load states
-        model_UPGA_J10_PRCDN = PGA_Unfold_J10_PRCDN(n_iter_inner_J10, n_iter_outer, dim_F=64, dim_W=4)
-        model_UPGA_J10_PRCDN.load_state_dict(torch.load(model_file_name_UPGA_J10_PRCDN, map_location=device))
-
-        sum_rate_UPGA_J10_PRCDN, crb_UPGA_J10_PRCDN, power_UPGA_J10_PRCDN, F_UPGA_J10_PRCDN, W_UPGA_J10_PRCDN = model_UPGA_J10_PRCDN.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
-                                                                                             snr,
-                                                                                             n_iter_outer,
-                                                                                             n_iter_inner_J10)
-        rate_iter_UPGA_J10_PRCDN  = sum_rate_UPGA_J10_PRCDN.mean(0).cpu().numpy()
-        crb_iter_UPGA_J10_PRCDN   = crb_UPGA_J10_PRCDN.mean(0).cpu().numpy()
-        power_iter_UPGA_J10_PRCDN = power_UPGA_J10_PRCDN.mean(0).cpu().numpy()
     # ====================================================== Proposed Unfolded PGA with decaying J ====================================
     if run_UPGA_J5_decay == 1:
         print('Running unfolded PGA with decaying J (max J=5)...')
@@ -295,14 +270,12 @@ if run_program == 1:
         model_UPGA_J5_decay.load_state_dict(torch.load(model_file_name_UPGA_J5_decay, map_location=device))
         register_step_size('UPGA (J=5, decay)', model_UPGA_J5_decay.step_size)
 
-        sum_rate_UPGA_J5_decay, crb_UPGA_J5_decay, power_UPGA_J5_decay, F_UPGA_J5_decay, W_UPGA_J5_decay, gradient_norm_history_UPGA_J5_decay = model_UPGA_J5_decay.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J5_decay, crb_UPGA_J5_decay, F_UPGA_J5_decay, W_UPGA_J5_decay = model_UPGA_J5_decay.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                             n_iter_inner_J5)
         rate_iter_UPGA_J5_decay  = sum_rate_UPGA_J5_decay.mean(0).cpu().numpy()
         crb_iter_UPGA_J5_decay   = crb_UPGA_J5_decay.mean(0).cpu().numpy()
-        power_iter_UPGA_J5_decay = power_UPGA_J5_decay.mean(0).cpu().numpy()
-        inner_iter_history_UPGA_J5_decay = list(model_UPGA_J5_decay.inner_iter_history)
     
     
     if run_UPGA_J10_decay == 1:
@@ -311,14 +284,12 @@ if run_program == 1:
         model_UPGA_J10_decay.load_state_dict(torch.load(model_file_name_UPGA_J10_decay, map_location=device))
         register_step_size('UPGA (J=10, decay)', model_UPGA_J10_decay.step_size)
 
-        sum_rate_UPGA_J10_decay, crb_UPGA_J10_decay, power_UPGA_J10_decay, F_UPGA_J10_decay, W_UPGA_J10_decay, gradient_norm_history_UPGA_J10_decay = model_UPGA_J10_decay.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J10_decay, crb_UPGA_J10_decay, F_UPGA_J10_decay, W_UPGA_J10_decay = model_UPGA_J10_decay.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                             n_iter_inner_J10)
         rate_iter_UPGA_J10_decay  = sum_rate_UPGA_J10_decay.mean(0).cpu().numpy()
         crb_iter_UPGA_J10_decay   = crb_UPGA_J10_decay.mean(0).cpu().numpy()
-        power_iter_UPGA_J10_decay = power_UPGA_J10_decay.mean(0).cpu().numpy()
-        inner_iter_history_UPGA_J10_decay = list(model_UPGA_J10_decay.inner_iter_history)
     
     if run_UPGA_J20_decay == 1:
         print('Running unfolded PGA with decaying J (max J=20)...')
@@ -326,182 +297,24 @@ if run_program == 1:
         model_UPGA_J20_decay.load_state_dict(torch.load(model_file_name_UPGA_J20_decay, map_location=device))
         register_step_size('UPGA (J=20, decay)', model_UPGA_J20_decay.step_size)
 
-        sum_rate_UPGA_J20_decay, crb_UPGA_J20_decay, power_UPGA_J20_decay, F_UPGA_J20_decay, W_UPGA_J20_decay, gradient_norm_history_UPGA_J20_decay = model_UPGA_J20_decay.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J20_decay, crb_UPGA_J20_decay, F_UPGA_J20_decay, W_UPGA_J20_decay = model_UPGA_J20_decay.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                             n_iter_inner_J20)
         rate_iter_UPGA_J20_decay  = sum_rate_UPGA_J20_decay.mean(0).cpu().numpy()
         crb_iter_UPGA_J20_decay   = crb_UPGA_J20_decay.mean(0).cpu().numpy()
-        power_iter_UPGA_J20_decay = power_UPGA_J20_decay.mean(0).cpu().numpy()
-        inner_iter_history_UPGA_J20_decay = list(model_UPGA_J20_decay.inner_iter_history)
     
-    # ====================================================== Proposed Unfolded PGA with gradient reuse ====================================
-    if run_UPGA_J_GradReuse == 1:
-        print('Running unfolded PGA with gradient reuse (J = 10)...')
-        model_UPGA_J_GradReuse = PGA_Unfold_J_GradReuse(step_size_UPGA_J_GradReuse)
-        # model_UPGA_J_GradReuse.load_state_dict(torch.load(model_file_name_UPGA_J10, map_location=device))
-        register_step_size('UPGA (J=10, GradReuse)', model_UPGA_J_GradReuse.step_size)
-
-        sum_rate_UPGA_J_GradReuse, crb_UPGA_J_GradReuse, power_UPGA_J_GradReuse, F_UPGA_J_GradReuse, W_UPGA_J_GradReuse = model_UPGA_J_GradReuse.execute_PGA(
-            H_test, xi_0, A_dot, R_N_inv, snr, n_iter_outer, n_iter_inner_J10)
-        print(f'  GradReuse fallback recomputations: {model_UPGA_J_GradReuse.grad_recalc_count}')
-        rate_iter_UPGA_J_GradReuse  = sum_rate_UPGA_J_GradReuse.mean(0).cpu().numpy()
-        crb_iter_UPGA_J_GradReuse   = crb_UPGA_J_GradReuse.mean(0).cpu().numpy()
-        power_iter_UPGA_J_GradReuse = power_UPGA_J_GradReuse.mean(0).cpu().numpy()
-    # ====================================================== Propsed Unofolded PGA with RMSProp-like adaptive step sizes ====================================
-    if run_UPGA_J10_RMSProp == 1:
-        print('Running unfolded PGA with J = 10 and RMSProp-like adaptive step sizes...')
-        # Create new model and load states
-        model_UPGA_J10_RMSProp = PGA_Unfold_J10_RMSProp()
-        # model_UPGA_J10_RMSProp.load_state_dict(torch.load(model_file_name_UPGA_J10_RMSProp))
-
-        sum_rate_UPGA_J10_RMSProp, crb_UPGA_J10_RMSProp, F_UPGA_J10_RMSProp, W_UPGA_J10_RMSProp = model_UPGA_J10_RMSProp.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
-                                                                                             snr,
-                                                                                             n_iter_outer,
-                                                                                             n_iter_inner_J10)
-        rate_iter_UPGA_J10_RMSProp = sum_rate_UPGA_J10_RMSProp.mean(0).cpu().numpy()
-        crb_iter_UPGA_J10_RMSProp  = crb_UPGA_J10_RMSProp.mean(0).cpu().numpy()
-
-    # ============================== generate beampattern ////////////////////////////////////////////////////////////////////
-    print('generating beampattern...')
-    if run_conv_PGA == 1:
-        beam_conv_PGA = get_beampattern(F_conv_PGA_J1, W_conv_PGA_J1, at, snr)
-    if run_UPGA_J10 == 1:
-        beam_UPGA_J10 = get_beampattern(F_UPGA_J10, W_UPGA_J10, at, snr)
-    if run_UPGA_J20 == 1:
-        beam_UPGA_J20 = get_beampattern(F_UPGA_J20, W_UPGA_J20, at, snr)
-    if run_conv_PGA_J10 == 1:
-        beam_conv_PGA_J10 = get_beampattern(F_conv_PGA_J10, W_conv_PGA_J10, at, snr)
-
-    # Always refresh the plot cache after an expensive run so plot-only reruns use the same file.
-    print('Saving plot data...')
-    save_plot_cache(get_plot_cache_file_name(), locals())
-
-# Save decay inner-iteration counts in a compact MATLAB file for external plotting.
-if run_program == 1:
-    decay_inner_iter_data = {}
-    if run_UPGA_J5_decay == 1 and 'inner_iter_history_UPGA_J5_decay' in locals():
-        decay_inner_iter_data['outer_iter_J5_decay'] = np.arange(1, len(inner_iter_history_UPGA_J5_decay) + 1)
-        decay_inner_iter_data['inner_iter_count_J5_decay'] = np.array(inner_iter_history_UPGA_J5_decay, dtype=np.int32)
-    if run_UPGA_J10_decay == 1 and 'inner_iter_history_UPGA_J10_decay' in locals():
-        decay_inner_iter_data['outer_iter_J10_decay'] = np.arange(1, len(inner_iter_history_UPGA_J10_decay) + 1)
-        decay_inner_iter_data['inner_iter_count_J10_decay'] = np.array(inner_iter_history_UPGA_J10_decay, dtype=np.int32)
-
-    if decay_inner_iter_data:
-        decay_inner_iter_file_name = directory_result + 'inner_iter_count_vs_outer_' + str(Nt) + '_' + str(OMEGA) + '.mat'
-        scipy.io.savemat(decay_inner_iter_file_name, decay_inner_iter_data)
-        print(f'Saved inner-iteration count data to {decay_inner_iter_file_name}')
 
 if plot_figure == 1:
+
+    ## an array of outer iteration indices for plotting
+    iter_outer_x = np.arange(n_iter_outer)
 
     if load_saved_plot_data == 1:
         plot_cache_file_name = get_plot_cache_file_name()
         print(f'Loading plot data from {plot_cache_file_name}...')
         globals().update(load_plot_cache(plot_cache_file_name))
         sync_run_flags_with_plot_data(globals())
-
-    # ///////////////////////////////////////// SHOW OBJECTIVE VALUES OVER ITERATIONS ///////////////////////////////////
-    benchmark = 0
-    iter_number_conv_PGA = np.array(list(range(n_iter_outer + 1)))
-    iter_number_UPGA_J1  = np.array(list(range(n_iter_outer + 1)))
-    # For J-inner models: flattened x-axis, length = n_outer * (J+1)
-    # Each outer step ii contributes slots [ii*(J+1)+0 .. ii*(J+1)+J]
-    iter_number_UPGA_J10 = np.arange(n_iter_outer * (n_iter_inner_J10 + 1))
-    iter_number_UPGA_J20 = np.arange(n_iter_outer * (n_iter_inner_J20 + 1))
-    # Fractional x-axis: map each slot back to a real-valued outer iteration
-    # slot ii*(J+1)+0 → ii (after W-update), slot ii*(J+1)+jj+1 → ii + (jj+1)/(J+1)
-    def fractional_iters(n_outer, n_inner):
-        x = []
-        for ii in range(n_outer):
-            x.append(float(ii))                            # W-update slot
-            for jj in range(n_inner):
-                x.append(ii + (jj + 1) / (n_inner + 1))   # inner F-update slots
-        return np.array(x)
-    frac_J1 = fractional_iters(n_iter_outer, n_iter_inner_J1)
-    frac_J5 = fractional_iters(n_iter_outer, n_iter_inner_J5)
-    frac_J10 = fractional_iters(n_iter_outer, n_iter_inner_J10)
-    frac_J20 = fractional_iters(n_iter_outer, n_iter_inner_J20)
-
-    def fractional_iters_variable(inner_iter_history):
-        """Fractional x-axis for variable inner-iteration schedules."""
-        x = []
-        for ii, n_inner_ii in enumerate(inner_iter_history):
-            x.append(float(ii))
-            for jj in range(n_inner_ii):
-                x.append(ii + (jj + 1) / (n_inner_ii + 1))
-        return np.array(x)
-    if run_UPGA_J5_decay == 1:
-        frac_J5_decay = fractional_iters_variable(inner_iter_history_UPGA_J5_decay)
-    if run_UPGA_J10_decay == 1:
-        frac_J10_decay = fractional_iters_variable(inner_iter_history_UPGA_J10_decay)
-    else:
-        frac_J10_decay = np.array([])
-    if run_UPGA_J20_decay == 1:
-        frac_J20_decay = fractional_iters_variable(inner_iter_history_UPGA_J20_decay)
-    else:
-        frac_J20_decay = np.array([])
-    # Indices of the last inner step of each outer iteration in the flattened arrays
-    # J=10: indices 10, 21, 32, ...  (block size J+1=11, last slot = J=10)
-    # J=20: indices 20, 41, 62, ...  (block size J+1=21, last slot = J=20)
-    outer_idx_J1 = np.arange(n_iter_inner_J1,
-                             n_iter_outer * (n_iter_inner_J1 + 1),
-                             n_iter_inner_J1 + 1) 
-    outer_idx_J4 = np.arange(n_iter_inner_J4,
-                             n_iter_outer * (n_iter_inner_J4 + 1),
-                             n_iter_inner_J4 + 1)
-    outer_idx_J5 = np.arange(n_iter_inner_J5,
-                             n_iter_outer * (n_iter_inner_J5 + 1),
-                             n_iter_inner_J5 + 1)   # length = n_iter_outer
-    outer_idx_J6 = np.arange(n_iter_inner_J6,
-                             n_iter_outer * (n_iter_inner_J6 + 1),
-                             n_iter_inner_J6 + 1)   # length = n_iter_outer
-    outer_idx_J10 = np.arange(n_iter_inner_J10,
-                              n_iter_outer * (n_iter_inner_J10 + 1),
-                              n_iter_inner_J10 + 1)   # length = n_iter_outer
-    outer_idx_J20 = np.arange(n_iter_inner_J20,
-                              n_iter_outer * (n_iter_inner_J20 + 1),
-                              n_iter_inner_J20 + 1)   # length = n_iter_outer
-    # outer_idx for J_decay/adaptive schedule: W-update is the LAST slot of each block
-    if run_UPGA_J5_decay == 1:
-        outer_idx_J5_decay = []
-        _pos = 0
-        for _ni in inner_iter_history_UPGA_J5_decay:
-            _pos += _ni
-            outer_idx_J5_decay.append(_pos)
-            _pos += 1
-        outer_idx_J5_decay = np.array(outer_idx_J5_decay)
-        iter_outer_x_J5_decay = np.arange(1, len(outer_idx_J5_decay) + 1)
-    else:
-        outer_idx_J5_decay = np.array([], dtype=int)
-        iter_outer_x_J5_decay = np.array([])
-    if run_UPGA_J10_decay == 1:
-        outer_idx_J10_decay = []
-        _pos = 0
-        for _ni in inner_iter_history_UPGA_J10_decay:
-            _pos += _ni
-            outer_idx_J10_decay.append(_pos)
-            _pos += 1
-        outer_idx_J10_decay = np.array(outer_idx_J10_decay)
-        iter_outer_x_J10_decay = np.arange(1, len(outer_idx_J10_decay) + 1)
-    else:
-        outer_idx_J10_decay = np.array([], dtype=int)
-        iter_outer_x_J10_decay = np.array([])
-    if run_UPGA_J20_decay == 1:
-        outer_idx_J20_decay = []
-        _pos = 0
-        for _ni in inner_iter_history_UPGA_J20_decay:
-            _pos += _ni
-            outer_idx_J20_decay.append(_pos)
-            _pos += 1
-        outer_idx_J20_decay = np.array(outer_idx_J20_decay)
-        iter_outer_x_J20_decay = np.arange(1, len(outer_idx_J20_decay) + 1)
-    else:
-        outer_idx_J20_decay = np.array([], dtype=int)
-        iter_outer_x_J20_decay = np.array([])
-    # J_GradReuse has the same fixed J=10 structure as J10
-    outer_idx_J_GradReuse = outer_idx_J10
-    frac_J_GradReuse = frac_J10
-    iter_outer_x  = np.arange(1, n_iter_outer + 1)    # x-axis: 1 .. n_iter_outer
 
     #  /////////////////////////////////////////////////////////////////////////////////////////
     #                               PLOT FIGURES
@@ -513,22 +326,6 @@ if plot_figure == 1:
         rf'\omega={OMEGA}$'
     )
 
-    # load benchmark results
-    if benchmark == 1:
-        benchmark_results = scipy.io.loadmat(directory_benchmark + 'result_benchmark')
-        rate_ZF = np.squeeze(benchmark_results['rate_ZF_mean'])
-        rate_SCA = np.squeeze(benchmark_results['rate_SCA_mean'])
-        tau_ZF = np.squeeze(benchmark_results['tau_ZF_mean'])
-        tau_SCA = np.squeeze(benchmark_results['tau_SCA_mean'])
-
-        idx_snr = np.where(snr_dB_list == snr_dB)
-        rate_ZF = rate_ZF[idx_snr] * np.ones(n_iter_outer + 1)
-        rate_SCA = rate_SCA[idx_snr] * np.ones(n_iter_outer + 1)
-        tau_ZF = tau_ZF[idx_snr] * np.ones(n_iter_outer + 1)
-        tau_SCA = tau_SCA[idx_snr] * np.ones(n_iter_outer + 1)
-
-        beam_ZF = np.squeeze(benchmark_results['beam_ZF_mean'][:, idx_snr])
-        beam_SCA = np.squeeze(benchmark_results['beam_SCA_mean'][:, idx_snr])
 
 
 
@@ -650,45 +447,31 @@ if plot_figure == 1:
     # ===================== OBJECTIVE (outer iters only) =============================================
     # plt.figure()
     plt.figure(figsize=(8, 5.2))
-    # if run_conv_PGA == 1:
-    #     obj_iter_conv_PGA_J1 = OMEGA * rate_iter_conv_PGA_J1 + crb_iter_conv_PGA_J1
-    #     plt.plot(iter_outer_x, obj_iter_conv_PGA_J1[outer_idx_J1], '..', markevery=5, color='black', linewidth=3, markersize=7, label=Conv_PGA_J1)
-    # if run_UPGA_J1 == 1:
-    #     obj_iter_UPGA_J1 = OMEGA * rate_iter_UPGA_J1[outer_idx_J1] + crb_iter_UPGA_J1
-    #     plt.plot(iter_outer_x, obj_iter_UPGA_J1, '-o', markevery=5, color='cyan', linewidth=3, markersize=7, label=label_UPGA_J1)
     if run_conv_PGA_J5 == 1:
         obj_iter_conv_PGA_J5 = OMEGA * rate_iter_conv_PGA_J5 + crb_iter_conv_PGA_J5
-        plt.plot(iter_outer_x, obj_iter_conv_PGA_J5[outer_idx_J5], ':d', markevery=5, color='blue', linewidth=3, markersize=7, label=Conv_PGA_J5)
+        plt.plot(iter_outer_x, obj_iter_conv_PGA_J5, ':d', markevery=5, color='blue', linewidth=3, markersize=7, label=Conv_PGA_J5)
     if run_conv_PGA_J10 == 1:
         obj_iter_conv_PGA_J10 = OMEGA * rate_iter_conv_PGA_J10 + crb_iter_conv_PGA_J10
-        plt.plot(iter_outer_x, obj_iter_conv_PGA_J10[outer_idx_J10], ':o', markevery=5, color='blue', linewidth=3, markersize=7, label=Conv_PGA_J10)
-    # if run_conv_PGA_J20 == 1:
-    #     obj_iter_conv_PGA_J20 = OMEGA * rate_iter_conv_PGA_J20 + crb_iter_conv_PGA_J20[outer_idx_J20]
-    #     plt.plot(iter_outer_x, obj_iter_conv_PGA_J20[outer_idx_J20], '.-', markevery=5, color='blue', linewidth=3, markersize=7, label=label_conv_PGA_J20)
+        plt.plot(iter_outer_x, obj_iter_conv_PGA_J10, ':o', markevery=5, color='blue', linewidth=3, markersize=7, label=Conv_PGA_J10)
     if run_UPGA_J4 == 1:
-        obj_iter_UPGA_J4 = OMEGA * rate_iter_UPGA_J4[outer_idx_J4] + crb_iter_UPGA_J4[outer_idx_J4]
+        obj_iter_UPGA_J4 = OMEGA * rate_iter_UPGA_J4 + crb_iter_UPGA_J4
         plt.plot(iter_outer_x, obj_iter_UPGA_J4, '--', markevery=5, color='orange', linewidth=3, markersize=7, label=label_UPGA_J4)
     if run_UPGA_J5 == 1:
-        obj_iter_UPGA_J5 = OMEGA * rate_iter_UPGA_J5[outer_idx_J5] + crb_iter_UPGA_J5[outer_idx_J5]
+        obj_iter_UPGA_J5 = OMEGA * rate_iter_UPGA_J5 + crb_iter_UPGA_J5
         plt.plot(iter_outer_x, obj_iter_UPGA_J5, '--d', markevery=5, color='red', linewidth=3, markersize=7, label=label_UPGA_J5)
     if run_UPGA_J6 == 1:
-        obj_iter_UPGA_J6 = OMEGA * rate_iter_UPGA_J6[outer_idx_J6] + crb_iter_UPGA_J6[outer_idx_J6]
+        obj_iter_UPGA_J6 = OMEGA * rate_iter_UPGA_J6 + crb_iter_UPGA_J6
         plt.plot(iter_outer_x, obj_iter_UPGA_J6, '--s', markevery=5, color='orange', linewidth=3, markersize=7, label=label_UPGA_J6)
     if run_UPGA_J10 == 1:
-        obj_iter_UPGA_J10 = OMEGA * rate_iter_UPGA_J10[outer_idx_J10] + crb_iter_UPGA_J10[outer_idx_J10]
+        obj_iter_UPGA_J10 = OMEGA * rate_iter_UPGA_J10+ crb_iter_UPGA_J10
         plt.plot(iter_outer_x, obj_iter_UPGA_J10, '--o', markevery=5, color='red', linewidth=3, markersize=7, label=label_UPGA_J10)
-    # if run_UPGA_J20 == 1:
-    #     obj_iter_UPGA_J20 = OMEGA * rate_iter_UPGA_J20[outer_idx_J20] + crb_iter_UPGA_J20[outer_idx_J20]
-    #     plt.plot(iter_outer_x, obj_iter_UPGA_J20, '-->', markevery=5, color='red', linewidth=3, markersize=7, label=label_UPGA_J20)
     if run_UPGA_J5_decay == 1:
-        obj_iter_UPGA_J5_decay = OMEGA * rate_iter_UPGA_J5_decay[outer_idx_J5_decay] + crb_iter_UPGA_J5_decay[outer_idx_J5_decay]
-        plt.plot(iter_outer_x_J5_decay, obj_iter_UPGA_J5_decay, '-d', markevery=5, color='green', linewidth=3, markersize=7, label=label_UPGA_J5_decay)
+        obj_iter_UPGA_J5_decay = OMEGA * rate_iter_UPGA_J5_decay + crb_iter_UPGA_J5_decay
+        plt.plot(iter_outer_x, obj_iter_UPGA_J5_decay, '-d', markevery=5, color='green', linewidth=3, markersize=7, label=label_UPGA_J5_decay)
     if run_UPGA_J10_decay == 1:
-        obj_iter_UPGA_J10_decay = OMEGA * rate_iter_UPGA_J10_decay[outer_idx_J10_decay] + crb_iter_UPGA_J10_decay[outer_idx_J10_decay]
-        plt.plot(iter_outer_x_J10_decay, obj_iter_UPGA_J10_decay, '-', markevery=5, color='green', linewidth=3, markersize=7, label=label_UPGA_J10_decay)
-    # if run_UPGA_J20_decay == 1:
-    #     obj_iter_UPGA_J20_decay = OMEGA * rate_iter_UPGA_J20_decay[outer_idx_J20_decay] + crb_iter_UPGA_J20_decay[outer_idx_J20_decay]
-    #     plt.plot(iter_outer_x_J20_decay, obj_iter_UPGA_J20_decay, '-', markevery=5, color='green', linewidth=3, markersize=7, label=label_UPGA_J20_decay)
+        obj_iter_UPGA_J10_decay = OMEGA * rate_iter_UPGA_J10_decay+ crb_iter_UPGA_J10_decay
+        plt.plot(iter_outer_x, obj_iter_UPGA_J10_decay, '-', markevery=5, color='green', linewidth=3, markersize=7, label=label_UPGA_J10_decay)
+
     plt.xlabel(r'Number of iterations/layers $(I)$', fontsize=14)
     plt.ylabel(r'$\omega R + \log(\text{CRLB}^{-1})$', fontsize=14)
     # plt.title("Objective function vs Iterations", fontsize=14)

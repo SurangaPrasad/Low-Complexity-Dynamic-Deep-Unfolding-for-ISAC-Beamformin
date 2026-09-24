@@ -4,19 +4,6 @@ import torch.nn as nn
 from utility import *
 from torch.utils.checkpoint import checkpoint
 
-def clamp_complex_magnitude(delta, max_magnitude):
-    """Scale complex updates so their magnitude never exceeds `max_magnitude`."""
-    magnitude = torch.abs(delta)
-    scale = torch.clamp(max_magnitude / (magnitude + 1e-12), max=1.0)
-    return delta * scale
-
-
-def sanitize_complex_tensor(tensor):
-    """Replace NaN/Inf entries in a complex tensor with safe finite values."""
-    real = torch.where(torch.isfinite(tensor.real), tensor.real, torch.zeros_like(tensor.real))
-    imag = torch.where(torch.isfinite(tensor.imag), tensor.imag, torch.zeros_like(tensor.imag))
-    return torch.complex(real, imag)
-
 
 def project_unit_modulus(F, eps=1e-12, active_mask=None):
     """Project complex entries to unit modulus without introducing NaNs."""
@@ -120,8 +107,7 @@ class PGA_Conv(nn.Module):
             grad_W_k_com = get_grad_W_com(H, F, W)
             grad_W_k_rad = get_grad_W_rad(F, W, R)
             W_new = W.clone().detach()
-            W_new[0] = W[0].detach() + (self.step_size[ii][1] * grad_W_k_com[0]) * WEIGHT_W_COM \
-                                     - (self.step_size[ii][1] * grad_W_k_rad[0]) * WEIGHT_W_RAD
+            W_new[0] = W[0].detach() + (self.step_size[ii][1] * grad_W_k_com[0]) * WEIGHT_W_COM - (self.step_size[ii][1] * grad_W_k_rad[0]) * WEIGHT_W_RAD
 
             # projection
             F, W = normalize(F, W_new, H, Pt)
@@ -145,174 +131,54 @@ class PGA_Unfold_JX(nn.Module):
         self.step_size = nn.Parameter(step_size)  # parameters = (mu, lambda)
         self.inner_iter_history = []
 
-        # Adaptive scheduling hyperparameter
         self.alpha = alpha
 
     # =========== Projection Gradient Ascent execution ===================
-    def execute_PGA(self, H, xi_0, A_dot, R_N_inv, Pt,
-                    n_iter_outer, n_iter_inner, track_metrics=True):
+    def execute_PGA(self, H, xi_0, A_dot, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
 
         rate_init, F, W = initialize(H, Pt, initial_normalization)
 
         B = len(H[0])
 
-        # Shape: (n_outer, J+1, B)
-        # [:, 0:J, :] = metrics after inner F-updates
-        # [:, -1, :]  = metrics after W-update
-        rate_over_iters = torch.zeros(n_iter_outer, n_iter_inner + 1, B, device=H.device)
-        crb_over_iters = torch.zeros(n_iter_outer, n_iter_inner + 1, B, device=H.device)
-        power_over_iters = torch.zeros(n_iter_outer, n_iter_inner + 1, B, device=H.device)
+        rate_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
+        crb_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
 
         def inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt):
-
             for jj in range(n_inner):
-
                 grad_F_com = get_grad_F_com(H, F, W)
                 grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
-
                 if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
                     print('Error NaN gradients!!!!!!!!!!!!!!!')
-
                 delta_F_com = self.step_size[jj][ii][0] * grad_F_com
                 delta_F_crb = self.step_size[jj][ii][0] * grad_F_crb
-
                 F = ( F + delta_F_com * WEIGHT_F_COM + delta_F_crb * WEIGHT_F_CRB )
-
                 F = normalize_power(F, W, H, Pt)
-
             return F
 
-        inner_iter_history = []
-        gradient_norm_history = []
-        gradient_norm_history_W = []
-        # print(f'Number of inner iterations: {self.step_size.shape[0]}')
         for ii in range(n_iter_outer):
-
-            # ----------------------------------------------------
-            # Gradient-norm-based adaptive inner iterations
-            # ----------------------------------------------------
-            grad_F_com = get_grad_F_com(H, F, W)
-            grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
-            grad_J_com = grad_F_com * WEIGHT_F_COM + grad_F_crb * WEIGHT_F_CRB
-
-            if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
-                print('Error NaN gradients before adaptive J!!!!!!!!!!!!!!!')
-
-            # Adaptive inner iteration count
-            # n_inner = _n_inner(ii, n_iter_outer)
             n_inner = self.step_size.shape[0]
     
             if track_metrics:
-
-                inner_iter_history.append(n_inner)
-                # Average entry-wise magnitude of ∇_F J
-                g_F = torch.abs(grad_J_com).reshape(grad_J_com.shape[0], -1).mean(dim=1)
-                gradient_norm_history.append(g_F.mean().item())
-                # gradient_norm_history_W.append(torch.linalg.norm(grad_W_k_com.reshape(grad_W_k_com.shape[0], -1), dim=1).mean().item())
-                # Run inner loop without checkpoint so that metrics
-                # can be recorded after each active inner update.
-                for jj in range(n_inner):
-
-                    grad_F_com = get_grad_F_com(H, F, W)
-                    grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
-
-                    if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
-                        print('Error NaN gradients during inner update!!!!!!!!!!!!!!!')
-
-                    delta_F_com = self.step_size[jj][ii][0] * grad_F_com
-                    delta_F_crb = self.step_size[jj][ii][0] * grad_F_crb
-
-                    F = ( F + delta_F_com * WEIGHT_F_COM + delta_F_crb * WEIGHT_F_CRB)
-
-                    # Scale F only, consistent with training path
-                    F = normalize_power(F, W, H, Pt)
-
-                    rate_over_iters[ii, jj] = get_sum_rate(H, F, W, Pt).detach()
-                    crb_over_iters[ii, jj] = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt).detach()
-                    power_over_iters[ii, jj] = get_power(F, W).detach()
-
+                F = inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt)
+                rate_over_iters[ii, 0] = get_sum_rate(H, F, W, Pt).detach()
+                crb_over_iters[ii, 0] = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt).detach()
             else:
-
                 F = checkpoint(inner_f_update,F,W,H,xi_0,A_dot,R_N_inv, n_inner, Pt, use_reentrant=False)
 
-            # Projection of analog precoder
             F = project_unit_modulus(F)
-
-            # ----------------------------------------------------
-            # Digital precoder update
-            # ----------------------------------------------------
             grad_W_k_com = get_grad_W_com(H, F, W)
             grad_W_k_crb = get_grad_W_crb(F, W, xi_0, A_dot, R_N_inv)
             grad_J_w = grad_W_k_com * WEIGHT_W_COM + grad_W_k_crb * WEIGHT_W_CRB
-            
-            # Average entry-wise magnitude of ∇_W J
-            g_W = torch.abs(grad_J_w).reshape(grad_J_w.shape[0], -1).mean(dim=1)
-            gradient_norm_history_W.append(g_W.mean().item())
 
-            W_new = (
-                W
-                + self.step_size[0][ii][1] * grad_W_k_com * WEIGHT_W_COM
-                + self.step_size[0][ii][1] * grad_W_k_crb * WEIGHT_W_CRB
-            )
+            W_new = (W + self.step_size[0][ii][1] * grad_W_k_com * WEIGHT_W_COM + self.step_size[0][ii][1] * grad_W_k_crb * WEIGHT_W_CRB)
 
-            # Projection / normalization
             F, W = normalize(F, W_new, H, Pt)
 
-            # Record metrics after W-update
-            if track_metrics:
+        ## average over the batch
+        rate_over_iters = rate_over_iters.mean(dim=-1, keepdim=True) # dimension: (n_iter_outer, 1, 1)
+        crb_over_iters = crb_over_iters.mean(dim=-1, keepdim=True) 
 
-                rate_over_iters[ii, -1] = get_sum_rate(H, F, W, Pt).detach()
-                crb_over_iters[ii, -1] = get_crb_fe(
-                    H, F, W, xi_0, A_dot, R_N_inv, Pt
-                ).detach()
-                power_over_iters[ii, -1] = get_power(F, W).detach()
-
-        # --------------------------------------------------------
-        # Collect variable-length metric history
-        # --------------------------------------------------------
-        if track_metrics:
-
-            rate_slots = []
-            crb_slots = []
-            power_slots = []
-
-            for ii, n_inner_ii in enumerate(inner_iter_history):
-
-                if n_inner_ii > 0:
-                    rate_slots.append(rate_over_iters[ii, :n_inner_ii])
-                    crb_slots.append(crb_over_iters[ii, :n_inner_ii])
-                    power_slots.append(power_over_iters[ii, :n_inner_ii])
-
-                # Add metric after W-update
-                rate_slots.append(rate_over_iters[ii, -1:].clone())
-                crb_slots.append(crb_over_iters[ii, -1:].clone())
-                power_slots.append(power_over_iters[ii, -1:].clone())
-
-            rates = torch.cat(rate_slots, dim=0).detach()
-            crb_fes = torch.cat(crb_slots, dim=0).detach()
-            power_fes = torch.cat(power_slots, dim=0).detach()
-
-        else:
-
-            # No per-inner metrics are tracked on this path,
-            # so retain the fixed rectangular layout.
-            rates = rate_over_iters.reshape(
-                n_iter_outer * (n_iter_inner + 1), B
-            ).detach()
-
-            crb_fes = crb_over_iters.reshape(
-                n_iter_outer * (n_iter_inner + 1), B
-            ).detach()
-
-            power_fes = power_over_iters.reshape(
-                n_iter_outer * (n_iter_inner + 1), B
-            ).detach()
-
-        self.inner_iter_history = list(inner_iter_history)
-        # print("Adaptive inner iterations:", inner_iter_history)
-        # print("Average inner iterations:", sum(inner_iter_history) / len(inner_iter_history))
-
-        return (rates.transpose(0, 1),crb_fes.transpose(0, 1),power_fes.transpose(0, 1),F,W,gradient_norm_history, gradient_norm_history_W)
+        return (rate_over_iters, crb_over_iters, F, W)
 
 # ============================================== Unfolded PGA with decaying inner iterations ==============================
 class PGA_Unfold_JX_decay(nn.Module):
@@ -335,90 +201,63 @@ class PGA_Unfold_JX_decay(nn.Module):
         rate_init, F, W = initialize(H, Pt, initial_normalization)
 
         B = len(H[0])
-
-        # Shape: (n_outer, J+1, B)
-        # [:, 0:J, :] = metrics after inner F-updates
-        # [:, -1, :]  = metrics after W-update
         rate_over_iters = torch.zeros(n_iter_outer, n_iter_inner + 1, B, device=H.device)
         crb_over_iters = torch.zeros(n_iter_outer, n_iter_inner + 1, B, device=H.device)
         power_over_iters = torch.zeros(n_iter_outer, n_iter_inner + 1, B, device=H.device)
 
         def _n_inner_from_grad(grad_F_J):
-
             J_max = self.step_size.shape[0]
             J_min = min(self.J_min, J_max)
-
             Nt = F.shape[-2]
             Nrf = F.shape[-1]
-
             g_i = torch.linalg.norm(grad_F_J.reshape(grad_F_J.shape[0], -1), dim=1) / (torch.sqrt(torch.tensor(Nt * Nrf, device=grad_F_J.device, dtype=grad_F_J.real.dtype)) + self.eps)
             g_i = torch.mean(g_i)
             r_i = g_i / (g_i + self.alpha)
-
             n_inner = int(torch.ceil(J_max * r_i).item())
-
             n_inner = max(J_min, min(J_max, n_inner))
-
             return n_inner
 
         def inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt):
 
             for jj in range(n_inner):
-
                 grad_F_com = get_grad_F_com(H, F, W)
                 grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
-
                 if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
                     print('Error NaN gradients!!!!!!!!!!!!!!!')
-
                 delta_F_com = self.step_size[jj][ii][0] * grad_F_com
                 delta_F_crb = self.step_size[jj][ii][0] * grad_F_crb
-
                 F = (F+ delta_F_com * WEIGHT_F_COM+ delta_F_crb * WEIGHT_F_CRB)
                 F = normalize_power(F, W, H, Pt)
-
             return F
 
         inner_iter_history = []
         gradient_norm_history = []
         for ii in range(n_iter_outer):
 
-            # ----------------------------------------------------
-            # Gradient-norm-based adaptive inner iterations
-            # ----------------------------------------------------
             grad_F_com = get_grad_F_com(H, F, W)
             grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
 
             if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
                 print('Error NaN gradients before adaptive J!!!!!!!!!!!!!!!')
 
-            # Adaptive inner iteration count
             grad_F_J = WEIGHT_F_COM * grad_F_com + WEIGHT_F_CRB * grad_F_crb
             n_inner = _n_inner_from_grad(grad_F_J)
-            # n_inner = self.step_size.shape[0]
             if track_metrics:
 
                 inner_iter_history.append(n_inner)
                 gradient_norm_history.append(torch.linalg.norm(grad_F_J.reshape(grad_F_J.shape[0], -1), dim=1).mean().item())
 
-                # Run inner loop without checkpoint so that metrics
-                # can be recorded after each active inner update.
                 for jj in range(n_inner):
 
                     grad_F_com = get_grad_F_com(H, F, W)
                     grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
-
                     if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
                         print('Error NaN gradients during inner update!!!!!!!!!!!!!!!')
-
                     delta_F_com = self.step_size[jj][ii][0] * grad_F_com
                     delta_F_crb = self.step_size[jj][ii][0] * grad_F_crb
-
                     F = (F+ delta_F_com * WEIGHT_F_COM+ delta_F_crb * WEIGHT_F_CRB)
-
                     # Scale F only, consistent with training path
                     F = normalize_power(F, W, H, Pt)
-
                     rate_over_iters[ii, jj] = get_sum_rate(H, F, W, Pt).detach()
                     crb_over_iters[ii, jj] = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt).detach()
                     power_over_iters[ii, jj] = get_power(F, W).detach()
@@ -430,9 +269,6 @@ class PGA_Unfold_JX_decay(nn.Module):
             # Projection of analog precoder
             F = project_unit_modulus(F)
 
-            # ----------------------------------------------------
-            # Digital precoder update
-            # ----------------------------------------------------
             grad_W_k_com = get_grad_W_com(H, F, W)
             grad_W_k_crb = get_grad_W_crb(F, W, xi_0, A_dot, R_N_inv)
 
@@ -448,9 +284,6 @@ class PGA_Unfold_JX_decay(nn.Module):
                 crb_over_iters[ii, -1] = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt).detach()
                 power_over_iters[ii, -1] = get_power(F, W).detach()
 
-        # --------------------------------------------------------
-        # Collect variable-length metric history
-        # --------------------------------------------------------
         if track_metrics:
 
             rate_slots = []
@@ -475,397 +308,14 @@ class PGA_Unfold_JX_decay(nn.Module):
 
         else:
 
-            # No per-inner metrics are tracked on this path,
-            # so retain the fixed rectangular layout.
             rates = rate_over_iters.reshape(n_iter_outer * (n_iter_inner + 1), B).detach()
             crb_fes = crb_over_iters.reshape(n_iter_outer * (n_iter_inner + 1), B).detach()
             power_fes = power_over_iters.reshape(n_iter_outer * (n_iter_inner + 1), B).detach()
 
         self.inner_iter_history = list(inner_iter_history)
-        # print("Adaptive inner iterations:", inner_iter_history)
-        # print("Average inner iterations:", sum(inner_iter_history) / len(inner_iter_history))
-        # print("Gradient norms at outer iterations:", gradient_norm_history)
 
         return (rates.transpose(0, 1),crb_fes.transpose(0, 1),power_fes.transpose(0, 1),F,W, gradient_norm_history) 
 
-
-# PGA_Unfold_J20_decay is identical to PGA_Unfold_J10_decay.
-# The max inner-iteration count is read dynamically from
-# self.step_size.shape[0], so passing a step_size tensor with
-# n_iter_inner_J20 rows gives J20 behaviour automatically.
-PGA_Unfold_J20_decay = PGA_Unfold_JX_decay
-
-# ============================================ Proposed PGA model with gradient reuse ====================================
-class PGA_Unfold_J_GradReuse(nn.Module):
-    """Unfolded PGA with lazy gradient reuse to reduce per-inner-iteration cost.
-
-    Uses J = n_iter_inner (default 10) fixed inner iterations per outer iteration.
-
-    F inner-iteration strategy for each outer iteration ``ii``:
-      jj = 0  : Always compute fresh gradients (get_grad_F_com + get_grad_F_crb).
-      jj >= 1 : Propose F_trial by reusing the last stored gradient with the current
-                step size.  Then evaluate the combined objective:
-                    obj = sum_rate * WEIGHT_F_COM + mean(crb_fe) * WEIGHT_F_CRB
-                - If obj(F_trial) > obj(F_current) → accept F_trial (reuse).
-                - Otherwise                        → recompute fresh gradients
-                  (fallback), log the recomputation, and step normally.
-
-    The stored F gradient is refreshed only at jj=0 or on a fallback recomputation,
-    so a sequence of accepted reuses all share the same fixed gradient direction.
-
-    W-update strategy across outer iterations:
-      ii = 0  : Always compute fresh W gradients (get_grad_W_com + get_grad_W_crb).
-      ii >= 1 : Propose W_trial by reusing the stored W gradients from the previous
-                outer iteration.  Compare against the baseline objective at
-                (F_projected, W_current) just before the W step:
-                    obj = sum_rate * WEIGHT_W_COM + mean(crb_fe) * WEIGHT_W_CRB
-                - If obj(W_trial) > obj(W_current) → accept W_trial (reuse).
-                - Otherwise                        → recompute fresh W gradients
-                  (fallback), log the recomputation, and step normally.
-
-    The stored W gradient is refreshed only at ii=0 or on a fallback recomputation,
-    so consecutive outer iterations may reuse the same W gradient direction.
-
-    Attributes
-    ----------
-    grad_recalc_count   : total F fallback recomputations (excludes mandatory jj=0)
-                          from the most recent ``execute_PGA`` call.
-    W_grad_recalc_count : total W fallback recomputations (excludes mandatory ii=0)
-                          from the most recent ``execute_PGA`` call.
-
-    step_size shape: [n_iter_inner, n_iter_outer, K+1]  (identical to PGA_Unfold_J10).
-    """
-
-    def __init__(self, step_size):
-        super().__init__()
-        self.step_size = nn.Parameter(step_size)  # [n_iter_inner, n_iter_outer, K+1]
-        self.grad_recalc_count = 0    # F fallback recomputations; updated by execute_PGA
-        self.W_grad_recalc_count = 0  # W fallback recomputations; updated by execute_PGA
-
-    # =========== Projection Gradient Ascent execution ===================
-    def execute_PGA(self, H, xi_0, A_dot, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
-        rate_init, F, W = initialize(H, Pt, initial_normalization)
-        B = len(H[0])
-
-        # Metric arrays: shape (n_outer, J+1, B).
-        #   [ii, 0..J-1, :] – after each inner F-update.
-        #   [ii,    J  , :] – after W-update (end of outer iter ii).
-        rate_over_iters  = torch.zeros(n_iter_outer, n_iter_inner + 1, B, device=H.device)
-        crb_over_iters   = torch.zeros(n_iter_outer, n_iter_inner + 1, B, device=H.device)
-        power_over_iters = torch.zeros(n_iter_outer, n_iter_inner + 1, B, device=H.device)
-
-        grad_recalc = 0    # F fallback recomputations (excludes mandatory jj=0 gradients)
-        W_grad_recalc = 0  # W fallback recomputations (excludes mandatory ii=0 gradients)
-
-        # W gradient state persists across outer iterations (unlike F which resets each outer iter).
-        prev_grad_W_k_com = None
-        prev_grad_W_k_crb = None
-
-        for ii in range(n_iter_outer):
-            prev_grad_F_com = None  # last stored gradient, refreshed at jj=0 or on fallback
-            prev_grad_F_crb = None
-            prev_obj = None         # Python float: combined objective at current F
-
-            for jj in range(n_iter_inner):
-                if jj == 0:
-                    # ---- Always compute a fresh gradient at the first inner step ----
-                    grad_F_com = get_grad_F_com(H, F, W)
-                    grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
-                    if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
-                        print('Error NaN gradients!!!!!!!!!!!!!!!')
-                else:
-                    # # ---- jj >= 1: attempt gradient reuse ----
-                    # # Propose a step using the last stored gradient.
-                    F_trial = (F
-                               + self.step_size[jj][ii][0] * prev_grad_F_com * WEIGHT_F_COM
-                               + self.step_size[jj][ii][0] * prev_grad_F_crb * WEIGHT_F_CRB)
-                    F_trial = normalize_power(F_trial, W, H, Pt)
-
-                    # Evaluate combined objective comparison (no grad tracking required).
-                    with torch.no_grad():
-                        r_trial = get_sum_rate(H, F_trial, W, Pt)
-                        c_trial = get_crb_fe(H, F_trial, W, xi_0, A_dot, R_N_inv, Pt)
-                        obj_trial = (r_trial * WEIGHT_F_COM + c_trial.mean() * WEIGHT_F_CRB).item()
-
-                    if obj_trial > prev_obj:
-                        # ---- Reuse accepted ----
-                        F = F_trial
-                        prev_obj = obj_trial
-                        # prev_grad_F_com/crb left unchanged so next jj reuses the same gradient.
-                        if track_metrics:
-                            rate_over_iters[ii, jj]  = r_trial.detach()
-                            crb_over_iters[ii, jj]   = c_trial.detach()
-                            power_over_iters[ii, jj] = get_power(F, W).detach()
-                        continue
-
-                    else:
-                        # ---- Reuse rejected: recompute gradient from current F ----
-                        grad_F_com = get_grad_F_com(H, F, W)
-                        grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
-                        if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
-                            print('Error NaN gradients!!!!!!!!!!!!!!!')
-                        grad_recalc += 1
-
-                # ---- Apply gradient step (jj=0 or reuse-rejected) ----
-                F = (F
-                     + self.step_size[jj][ii][0] * grad_F_com * WEIGHT_F_COM
-                     + self.step_size[jj][ii][0] * grad_F_crb * WEIGHT_F_CRB)
-                F = normalize_power(F, W, H, Pt)
-
-                # Store gradient and current objective baseline for next inner iter.
-                prev_grad_F_com = grad_F_com.detach()
-                prev_grad_F_crb = grad_F_crb.detach()
-                with torch.no_grad():
-                    r_cur = get_sum_rate(H, F, W, Pt)
-                    c_cur = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt)
-                    prev_obj = (r_cur * WEIGHT_F_COM + c_cur.mean() * WEIGHT_F_CRB).item()
-
-                if track_metrics:
-                    rate_over_iters[ii, jj]  = r_cur.detach()
-                    crb_over_iters[ii, jj]   = c_cur.detach()
-                    power_over_iters[ii, jj] = get_power(F, W).detach()
-
-            F = project_unit_modulus(F)
-
-            # ---- W update with gradient reuse across outer iterations ----
-            # Baseline objective at (F_projected, W_current) for the reuse comparison.
-            with torch.no_grad():
-                r_preW = get_sum_rate(H, F, W, Pt)
-                c_preW = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt)
-                obj_preW = (r_preW * WEIGHT_W_COM + c_preW.mean() * WEIGHT_W_CRB).item()
-
-            w_reuse_accepted = False
-            if ii > 0 and prev_grad_W_k_com is not None:
-                # ---- ii >= 1: attempt gradient reuse for W ----
-                W_trial_new = W.clone().detach()
-                W_trial_new[0] = (W[0].detach()
-                                  + (self.step_size[0][ii][1] * prev_grad_W_k_com) * WEIGHT_W_COM
-                                  + (self.step_size[0][ii][1] * prev_grad_W_k_crb) * WEIGHT_W_CRB)
-                F_wt, W_trial = normalize(F, W_trial_new, H, Pt)
-
-                with torch.no_grad():
-                    r_wt = get_sum_rate(H, F_wt, W_trial, Pt)
-                    c_wt = get_crb_fe(H, F_wt, W_trial, xi_0, A_dot, R_N_inv, Pt)
-                    obj_wt = (r_wt * WEIGHT_W_COM + c_wt.mean() * WEIGHT_W_CRB).item()
-
-                if obj_wt > obj_preW:
-                    # ---- W reuse accepted ----
-                    F, W = F_wt, W_trial
-                    w_reuse_accepted = True
-                    # prev_grad_W_k_com/crb left unchanged: next outer iter reuses same gradient.
-                    if track_metrics:
-                        rate_over_iters[ii, -1]  = r_wt.detach()
-                        crb_over_iters[ii, -1]   = c_wt.detach()
-                        power_over_iters[ii, -1] = get_power(F, W).detach()
-                else:
-                    # ---- W reuse rejected: recompute W gradients from current (F, W) ----
-                    grad_W_k_com = get_grad_W_com(H, F, W)
-                    grad_W_k_crb = get_grad_W_crb(F, W, xi_0, A_dot, R_N_inv)
-                    if grad_W_k_com[0].isnan().any() or grad_W_k_crb[0].isnan().any():
-                        print('Error NaN gradients (W)!!!!!!!!!!!!!!!')
-                    W_grad_recalc += 1
-            else:
-                # ---- ii == 0: always compute fresh W gradients ----
-                grad_W_k_com = get_grad_W_com(H, F, W)
-                grad_W_k_crb = get_grad_W_crb(F, W, xi_0, A_dot, R_N_inv)
-                if grad_W_k_com[0].isnan().any() or grad_W_k_crb[0].isnan().any():
-                    print('Error NaN gradients (W)!!!!!!!!!!!!!!!')
-
-            if not w_reuse_accepted:
-                # ---- Apply W gradient step (ii=0 or reuse-rejected) ----
-                W_new = W.clone().detach()
-                W_new[0] = (W[0].detach()
-                            + (self.step_size[0][ii][1] * grad_W_k_com[0]) * WEIGHT_W_COM
-                            + (self.step_size[0][ii][1] * grad_W_k_crb[0]) * WEIGHT_W_CRB)
-                F, W = normalize(F, W_new, H, Pt)
-
-                # Store W gradients for reuse in the next outer iteration.
-                prev_grad_W_k_com = grad_W_k_com[0].detach()
-                prev_grad_W_k_crb = grad_W_k_crb[0].detach()
-
-                if track_metrics:
-                    rate_over_iters[ii, -1]  = get_sum_rate(H, F, W, Pt).detach()
-                    crb_over_iters[ii, -1]   = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt).detach()
-                    power_over_iters[ii, -1] = get_power(F, W).detach()
-
-        # Log and store gradient recomputation counts.
-        self.grad_recalc_count = grad_recalc
-        self.W_grad_recalc_count = W_grad_recalc
-        max_possible_F = n_iter_outer * (n_iter_inner - 1)
-        max_possible_W = n_iter_outer - 1
-        print(f'[GradReuse] F fallback recomputations = {grad_recalc} / {max_possible_F} '
-              f'({100.0 * grad_recalc / max(max_possible_F, 1):.1f}%)')
-        print(f'[GradReuse] W fallback recomputations = {W_grad_recalc} / {max_possible_W} '
-              f'({100.0 * W_grad_recalc / max(max_possible_W, 1):.1f}%)')
-
-        # Flatten to (n_outer*(J+1), B) then transpose to (B, n_outer*(J+1)).
-        rates     = rate_over_iters.reshape(n_iter_outer * (n_iter_inner + 1), B).detach()
-        crb_fes   = crb_over_iters.reshape(n_iter_outer * (n_iter_inner + 1), B).detach()
-        power_fes = power_over_iters.reshape(n_iter_outer * (n_iter_inner + 1), B).detach()
-        return rates.transpose(0, 1), crb_fes.transpose(0, 1), power_fes.transpose(0, 1), F, W
-
-
-# ============================================== Proposed PGA model light with preconditioner=============================
-class PGA_Unfold_J10_PRCDN(nn.Module):
-
-    def __init__(self, n_iter_inner, n_iter_outer, dim_F, dim_W):
-        super().__init__()
-
-        # ===== Diagonal preconditioner for F =====
-        # Shape: [n_iter_inner, n_iter_outer, 64]
-        self.mu = nn.Parameter( 1e-2 * torch.ones(n_iter_inner, n_iter_outer, dim_F, device=device))
-
-        # ===== Diagonal preconditioner for W =====
-        # Shape: [n_iter_outer, 4]
-        self.lambda_ = nn.Parameter( 1e-2 * torch.ones(n_iter_outer, dim_W, device=device))
-
-
-
-    # =========== Projection Gradient Ascent execution ===================
-    def execute_PGA(self, H, xi_0, A_dot, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
-        rate_init, F, W = initialize(H, Pt, initial_normalization)
-        B = len(H[0])
-        # Shape: (n_outer, J+1, B)
-        rate_over_iters  = torch.zeros(n_iter_outer, n_iter_inner + 1, B, device=H.device)
-        crb_over_iters   = torch.zeros(n_iter_outer, n_iter_inner + 1, B, device=H.device)
-        power_over_iters = torch.zeros(n_iter_outer, n_iter_inner + 1, B, device=H.device)
-
-        def inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, mu_ii, n_inner, Pt):
-            for jj in range(n_inner):
-                grad_F_com = get_grad_F_com(H, F, W)
-                grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
-                if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
-                    print('Error NaN gradients!!!!!!!!!!!!!!!')
-                grad_vec_com = grad_F_com.reshape(64, -1)
-                grad_vec_crb = grad_F_crb.reshape(64, -1)
-                mu_vec = mu_ii[jj]
-                delta_vec_com = mu_vec.unsqueeze(1) * grad_vec_com
-                delta_vec_crb = mu_vec.unsqueeze(1) * grad_vec_crb
-                delta_F_com = delta_vec_com.reshape_as(grad_F_com)
-                delta_F_crb = delta_vec_crb.reshape_as(grad_F_crb)
-                F = F + delta_F_com * WEIGHT_F_COM + delta_F_crb * WEIGHT_F_CRB
-                F = normalize_power(F, W, H, Pt)
-            return F
-
-        for ii in range(n_iter_outer):
-            if track_metrics:
-                # Run inner loop without checkpoint so we can record per-inner metrics
-                mu_ii = self.mu[:, ii]
-                for jj in range(n_iter_inner):
-                    grad_F_com = get_grad_F_com(H, F, W)
-                    grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
-                    grad_vec_com = grad_F_com.reshape(64, -1)
-                    grad_vec_crb = grad_F_crb.reshape(64, -1)
-                    mu_vec = mu_ii[jj]
-                    delta_F_com = (mu_vec.unsqueeze(1) * grad_vec_com).reshape_as(grad_F_com)
-                    delta_F_crb = (mu_vec.unsqueeze(1) * grad_vec_crb).reshape_as(grad_F_crb)
-                    F = F + delta_F_com * WEIGHT_F_COM + delta_F_crb * WEIGHT_F_CRB
-                    F = normalize_power(F, W, H, Pt)
-                    rate_over_iters[ii, jj]  = get_sum_rate(H, F, W, Pt).detach()
-                    crb_over_iters[ii, jj]   = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt).detach()
-                    power_over_iters[ii, jj] = get_power(F, W).detach()
-            else:
-                F = checkpoint(inner_f_update, F, W, H, xi_0, A_dot, R_N_inv, self.mu[:, ii], n_iter_inner, Pt, use_reentrant=False)
-            F = project_unit_modulus(F)
-
-            # update W  (K == 1 always, unroll the k-loop)
-            grad_W_k_com = get_grad_W_com(H, F, W)
-            grad_W_k_crb = get_grad_W_crb(F, W, xi_0, A_dot, R_N_inv)
-            lambda_vec = self.lambda_[ii]
-            grad_vec_com = grad_W_k_com[0].reshape(4, -1)
-            grad_vec_crb = grad_W_k_crb[0].reshape(4, -1)
-            delta_vec_com = lambda_vec.unsqueeze(1) * grad_vec_com
-            delta_vec_crb = lambda_vec.unsqueeze(1) * grad_vec_crb
-            W_new = W.clone().detach()
-            W_new[0] = W[0] + delta_vec_com.reshape_as(grad_W_k_com[0]) * WEIGHT_W_COM \
-                            + delta_vec_crb.reshape_as(grad_W_k_crb[0]) * WEIGHT_W_CRB
-
-            # Projection
-            F, W = normalize(F, W_new, H, Pt)
-
-            # Record metrics after W-update (last slot of this outer iter)
-            if track_metrics:
-                rate_over_iters[ii, -1]  = get_sum_rate(H, F, W, Pt).detach()
-                crb_over_iters[ii, -1]   = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt).detach()
-                power_over_iters[ii, -1] = get_power(F, W).detach()
-
-        # Flatten to (n_outer*(J+1), B) then transpose to (B, n_outer*(J+1))
-        rates     = rate_over_iters.reshape(n_iter_outer * (n_iter_inner + 1), B).detach()
-        crb_fes   = crb_over_iters.reshape(n_iter_outer * (n_iter_inner + 1), B).detach()
-        power_fes = power_over_iters.reshape(n_iter_outer * (n_iter_inner + 1), B).detach()
-        return rates.transpose(0, 1), crb_fes.transpose(0, 1), power_fes.transpose(0, 1), F, W
-
-# ============================================== Proposed PGA model light for RMSProp=============================
-
-class PGA_Unfold_J10_RMSProp(nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-        self.beta = 0.9
-        self.eps = 1e-8
-        self.eta_F = 1e-2   # base learning rate for F
-        self.eta_W = 1e-2   # base learning rate for W
-
-
-
-    # =========== Projection Gradient Ascent execution ===================
-    def execute_PGA(self, H, xi_0, A_dot, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
-        rate_init, F, W = initialize(H, Pt, initial_normalization)
-        B = len(H[0])
-        # Shape: (n_outer, J+1, B)
-        rate_over_iters = torch.zeros(n_iter_outer, n_iter_inner + 1, B, device=H.device)
-        crb_over_iters  = torch.zeros(n_iter_outer, n_iter_inner + 1, B, device=H.device)
-
-        s_F = torch.zeros_like(F)
-        s_W = torch.zeros_like(W)
-
-        def inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt, s_F):
-            for jj in range(n_inner):
-                grad_F_com = get_grad_F_com(H, F, W)
-                grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
-                grad_F = grad_F_com * WEIGHT_F_COM + grad_F_crb * WEIGHT_F_CRB
-                s_F = self.beta * s_F + (1 - self.beta) * grad_F
-                F = F + self.eta_F * grad_F / (torch.sqrt(s_F) + self.eps)
-                F = normalize_power(F, W, H, Pt)
-            return F
-
-        for ii in range(n_iter_outer):
-            if track_metrics:
-                # Run inner loop without checkpoint so we can record per-inner metrics
-                for jj in range(n_iter_inner):
-                    grad_F_com = get_grad_F_com(H, F, W)
-                    grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
-                    grad_F = grad_F_com * WEIGHT_F_COM + grad_F_crb * WEIGHT_F_CRB
-                    s_F = self.beta * s_F + (1 - self.beta) * grad_F
-                    F = F + self.eta_F * grad_F / (torch.sqrt(s_F) + self.eps)
-                    F = normalize_power(F, W, H, Pt)
-                    rate_over_iters[ii, jj + 1] = get_sum_rate(H, F, W, Pt).detach()
-                    crb_over_iters[ii, jj + 1]  = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt).detach()
-            else:
-                F = checkpoint(inner_f_update, F, W, H, xi_0, A_dot, R_N_inv, n_iter_inner, Pt, s_F, use_reentrant=False)
-            F = project_unit_modulus(F)
-
-            # update W with RMSProp (K == 1 always, unroll the k-loop)
-            grad_W_k_com = get_grad_W_com(H, F, W)
-            grad_W_k_crb = get_grad_W_crb(F, W, xi_0, A_dot, R_N_inv)
-            if ii == 0:
-                s_W = torch.zeros_like(W)
-            grad_W_0 = grad_W_k_com[0] * WEIGHT_W_COM + grad_W_k_crb[0] * WEIGHT_W_CRB
-            s_W[0] = self.beta * s_W[0] + (1 - self.beta) * grad_W_0
-            W_new = W.clone()
-            W_new[0] = W[0] + self.eta_W * grad_W_0 / (torch.sqrt(s_W[0]) + self.eps)
-            F, W = normalize(F, W_new, H, Pt)
-
-            # Record metrics after W-update (slot 0 of this outer iter)
-            if track_metrics:
-                rate_over_iters[ii, 0] = get_sum_rate(H, F, W, Pt).detach()
-                crb_over_iters[ii, 0]  = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt).detach()
-
-        # Flatten to (n_outer*(J+1), B) then transpose to (B, n_outer*(J+1))
-        rates   = rate_over_iters.reshape(n_iter_outer * (n_iter_inner + 1), B).detach()
-        crb_fes = crb_over_iters.reshape(n_iter_outer * (n_iter_inner + 1), B).detach()
-        return rates.transpose(0, 1), crb_fes.transpose(0, 1), F, W
 
 # /////////////////////////////////////////////////////////////////////////////////////////
 #                             COMM GRADIENTS

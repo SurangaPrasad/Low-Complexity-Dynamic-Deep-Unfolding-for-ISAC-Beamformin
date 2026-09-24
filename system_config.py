@@ -11,24 +11,24 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
 
 #/////////////////////////// CONSIONDER SCHEMES /////////////////////////////////////////////////////////
-run_conv_PGA = 1           # Conventional PGA without unfolding
+run_conv_PGA = 0           # Conventional PGA without unfolding
 run_conv_PGA_J5 = 1        # Conventional PGA with setting J = 5
-run_conv_PGA_J10 = 1       # Conventional PGA with setting J = 10
+run_conv_PGA_J10 = 0       # Conventional PGA with setting J = 10
 run_conv_PGA_J20 = 0
 run_conv_PGA_J10_PC = 0    # Conventional PGA with J = 10 and partial coupling (PC) 
 run_UPGA_J1 = 0            # Unfolded PGA without any modification (J = 1)
-run_UPGA_J4 = 1
-run_UPGA_J5 = 1            # Unfolded PGA with setting J = 5
-run_UPGA_J6 = 1            # Unfolded PGA with setting J = 6 (for ablation on inner iteration number)
-run_UPGA_J10 = 1           # Unfolded PGA with setting J = 10
+run_UPGA_J4 = 0
+run_UPGA_J5 = 0            # Unfolded PGA with setting J = 5
+run_UPGA_J6 = 0            # Unfolded PGA with setting J = 6 (for ablation on inner iteration number)
+run_UPGA_J10 = 0           # Unfolded PGA with setting J = 10
 run_UPGA_J20 = 0           # Unfolded PGA with setting J = 20
 run_UPGA_J10_PC = 0        # Unfolded PGA with J = 10 and partial coupling (PC)
 run_UPGA_J10_PC_AP = 0     # Unfolded PGA with J = 10, partial coupling (PC)
 run_UPGA_J10_PRCDN = 0 
 
 run_UPGA_J10_RMSProp = 0   # Unfolded PGA with J = 10 and RMSProp-like adaptive step sizes
-run_UPGA_J5_decay = 1        # Unfolded PGA with decaying inner iterations (J_max=5 → 1)
-run_UPGA_J10_decay = 1       # Unfolded PGA with decaying inner iterations (J_max=10 → 1)
+run_UPGA_J5_decay = 0        # Unfolded PGA with decaying inner iterations (J_max=5 → 1)
+run_UPGA_J10_decay = 9       # Unfolded PGA with decaying inner iterations (J_max=10 → 1)
 run_UPGA_J20_decay = 0       # Unfolded PGA with decaying inner iterations (J_max=20 → 1)
 run_UPGA_J_GradReuse = 0   # Unfolded PGA with J=10 and gradient reuse / lazy gradient strategy
 
@@ -59,7 +59,7 @@ OMEGA = 0.25
 
 # ////////////////////////////////////////////// MODEL PARAMS //////////////////////////////////////////////
 train_size = 112 * 2    # size of training set
-test_size = 50     # size of testing set
+test_size = 10     # size of testing set
 batch_size = len(snr_dB_list) * 4
 n_epoch = 20         # number of training epochs
 learning_rate = 0.0005 # learning 
