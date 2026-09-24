@@ -274,8 +274,8 @@ if run_program == 1:
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                             n_iter_inner_J5)
-        rate_iter_UPGA_J5_decay  = sum_rate_UPGA_J5_decay.mean(0).cpu().numpy()
-        crb_iter_UPGA_J5_decay   = crb_UPGA_J5_decay.mean(0).cpu().numpy()
+        rate_iter_UPGA_J5_decay  = sum_rate_UPGA_J5_decay.squeeze().cpu().numpy()
+        crb_iter_UPGA_J5_decay   = crb_UPGA_J5_decay.squeeze().cpu().numpy()
     
     
     if run_UPGA_J10_decay == 1:
@@ -288,8 +288,8 @@ if run_program == 1:
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                             n_iter_inner_J10)
-        rate_iter_UPGA_J10_decay  = sum_rate_UPGA_J10_decay.mean(0).cpu().numpy()
-        crb_iter_UPGA_J10_decay   = crb_UPGA_J10_decay.mean(0).cpu().numpy()
+        rate_iter_UPGA_J10_decay  = sum_rate_UPGA_J10_decay.squeeze().cpu().numpy()
+        crb_iter_UPGA_J10_decay   = crb_UPGA_J10_decay.squeeze().cpu().numpy()
     
     if run_UPGA_J20_decay == 1:
         print('Running unfolded PGA with decaying J (max J=20)...')
@@ -301,8 +301,8 @@ if run_program == 1:
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                             n_iter_inner_J20)
-        rate_iter_UPGA_J20_decay  = sum_rate_UPGA_J20_decay.mean(0).cpu().numpy()
-        crb_iter_UPGA_J20_decay   = crb_UPGA_J20_decay.mean(0).cpu().numpy()
+        rate_iter_UPGA_J20_decay  = sum_rate_UPGA_J20_decay.squeeze().cpu().numpy()
+        crb_iter_UPGA_J20_decay   = crb_UPGA_J20_decay.squeeze().cpu().numpy()
     
 
 if plot_figure == 1:
