@@ -103,7 +103,7 @@ def run_UPGA_decay(step_size_UPGA_decay):
         epoch_losses.append(avg_loss)
         print(f"Epoch [{i_epoch+1}/{n_epoch}], Average Loss: {avg_loss:.4f}")
 
-    torch.save(model_UPGA_decay.state_dict(), directory_model + f'UPGA_J{step_size_UPGA_decay.shape[0]}.pth')
+    torch.save(model_UPGA_decay.state_dict(), directory_model + f'UPGA_J{step_size_UPGA_decay.shape[0]}_decay.pth')
 # ====================================================== Conventional PGA ====================================
 if run_conv_PGA == 1:
     # Object defining

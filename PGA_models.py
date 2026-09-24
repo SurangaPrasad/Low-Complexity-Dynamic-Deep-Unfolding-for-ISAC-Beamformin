@@ -199,8 +199,8 @@ class PGA_Unfold_JX_decay(nn.Module):
         rate_init, F, W = initialize(H, Pt, initial_normalization)
 
         B = len(H[0])
-        rate_over_iters = torch.zeros(n_iter_outer, 1, 1, device=H.device)
-        crb_over_iters = torch.zeros(n_iter_outer, 1, 1, device=H.device)
+        rate_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
+        crb_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
 
         def _n_inner_from_grad(grad_F_J):
             J_max = self.step_size.shape[0]
