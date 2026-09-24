@@ -89,7 +89,7 @@ def run_UPGA_decay(step_size_UPGA_decay):
             snr_dB_train = np.random.permutation(np.tile(snr_dB_list, batch_size // len(snr_dB_list)))[:cur_bs]
             snr_train = torch.tensor(10 ** (snr_dB_train / 10), dtype=torch.float32, device=device)
 
-            __, __, __, F, W, __ = model_UPGA_decay.execute_PGA(H, xi_0, A_dot, R_N_inv, snr_train, n_iter_outer, step_size_UPGA_decay.shape[0], track_metrics=False)
+            __, __, F, W = model_UPGA_decay.execute_PGA(H, xi_0, A_dot, R_N_inv, snr_train, n_iter_outer, step_size_UPGA_decay.shape[0], track_metrics=False)
 
             loss = get_sum_loss(F, W, H, xi_0, A_dot, R_N_inv, snr_train)
             print(f"Batch [{i_batch//batch_size+1}/{len(H_train[0])//batch_size}], Loss: {loss.item():.4f}")
