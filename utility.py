@@ -14,6 +14,31 @@ def randn_complex(shape, device=None):
     return torch.complex(real, imag)
 
 
+# ========================= COMPUTE A_dot FROM A GIVEN ANGLE =========================
+# theta_desire_list: the pool of angles from which theta_desire is selected per batch
+theta_desire_list = np.array([0, 45, 90, 135, 180, 225, 270, 315], dtype='float64')
+
+def compute_A_dot(theta_desire):
+    """Compute the A_dot matrix for the given desired angle(s) in degrees.
+
+    Args:
+        theta_desire: scalar or array of desired angles in degrees.
+    Returns:
+        A_dot tensor of shape (Nt, Nt) on the configured device/dtype.
+    """
+    desired_angle_rad = np.radians(np.atleast_1d(theta_desire))
+    desired_angle_rad_torch = torch.tensor(desired_angle_rad, dtype=torch.float32)
+    phase = 1j * 2 * torch.pi * delta * torch.sin(desired_angle_rad_torch) * n_indices
+    a_phi_0 = torch.exp(phase)  # shape: (Nt,)
+    a_dot_phi_0 = ((1j * 2 * torch.pi * delta * torch.cos(desired_angle_rad_torch) * n_indices) * a_phi_0)
+
+    a_phi_0 = a_phi_0.unsqueeze(1)  # shape: (Nt, 1)
+    a_dot_phi_0 = a_dot_phi_0.unsqueeze(1)  # shape: (Nt, 1)
+
+    A_dot = (a_dot_phi_0 @ a_phi_0.transpose(0, 1) + a_phi_0 @ a_dot_phi_0.transpose(0, 1)).to(COMPLEX_DTYPE).to(device)
+    return A_dot
+
+
 # ==================================== initialize F and W ===========================
 def initialize(H, Pt, normalization, pc=False):
     if init_scheme == 'conv':

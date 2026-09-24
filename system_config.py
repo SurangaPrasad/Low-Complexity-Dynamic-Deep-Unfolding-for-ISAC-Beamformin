@@ -116,12 +116,7 @@ step_size_UPGA_J20_decay = torch.full([n_iter_inner_J20, n_iter_outer, K + 1], s
 # J_GradReuse uses the same shape as J10; gradient reuse logic is handled inside execute_PGA
 step_size_UPGA_J_GradReuse = torch.full([n_iter_inner_J10, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
 
-# # ========================== Initialize step sizes seperately for lambda and mu ============
-# step_size_lambda = torch.diag([Nt, M], step_size_fixed, requires_grad=True)
-# step_size_mu = torch.diag([Nrf, M], step_size_fixed, requires_grad=True)
-# step_size_UPGA_J10_lambda = torch.full([n_iter_inner_J10, n_iter_outer, K + 1], step_size_lambda, requires_grad=True)
-# step_size_UPGA_J10_mu = torch.full([n_iter_inner_J10, n_iter_outer, K + 1], step_size_mu, requires_grad=True)
-# ////////////////////////////////////////////// SAVING RESULTS AND DATA //////////////////////////////////////////////
+
 directory_data = "./dataset/" + system_config + "/"
 if not os.path.exists(directory_data):
     os.makedirs(directory_data)

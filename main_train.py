@@ -56,10 +56,13 @@ def run_UPGA(step_size_UPGA):
             cur_bs = H.shape[1]
             snr_dB_train = np.random.permutation(np.tile(snr_dB_list, batch_size // len(snr_dB_list)))[:cur_bs]  # balanced per-SNR
             snr_train = torch.tensor(10 ** (snr_dB_train / 10), dtype=torch.float32, device=device)
+
+            theta_desire_batch = np.random.choice(theta_desire_list, size=n_target, replace=False)
+            A_dot_batch = compute_A_dot(theta_desire_batch)
             
-            rate, __, F, W= model_UPGA.execute_PGA(H, xi_0, A_dot, R_N_inv, snr_train, n_iter_outer, step_size_UPGA.shape[0], track_metrics=False)
+            rate, __, F, W= model_UPGA.execute_PGA(H, xi_0, A_dot_batch, R_N_inv, snr_train, n_iter_outer, step_size_UPGA.shape[0], track_metrics=False)
             
-            loss = get_sum_loss(F, W, H, xi_0, A_dot, R_N_inv, snr_train)
+            loss = get_sum_loss(F, W, H, xi_0, A_dot_batch, R_N_inv, snr_train)
             print(f"Batch [{i_batch//batch_size+1}/{len(H_train[0])//batch_size}], Loss: {loss.item():.4f}")
 
             optimizer.zero_grad()
@@ -89,9 +92,12 @@ def run_UPGA_decay(step_size_UPGA_decay):
             snr_dB_train = np.random.permutation(np.tile(snr_dB_list, batch_size // len(snr_dB_list)))[:cur_bs]
             snr_train = torch.tensor(10 ** (snr_dB_train / 10), dtype=torch.float32, device=device)
 
-            __, __, F, W = model_UPGA_decay.execute_PGA(H, xi_0, A_dot, R_N_inv, snr_train, n_iter_outer, step_size_UPGA_decay.shape[0], track_metrics=False)
+            theta_desire_batch = np.random.choice(theta_desire_list, size=n_target, replace=False)
+            A_dot_batch = compute_A_dot(theta_desire_batch)
 
-            loss = get_sum_loss(F, W, H, xi_0, A_dot, R_N_inv, snr_train)
+            __, __, F, W = model_UPGA_decay.execute_PGA(H, xi_0, A_dot_batch, R_N_inv, snr_train, n_iter_outer, step_size_UPGA_decay.shape[0], track_metrics=False)
+
+            loss = get_sum_loss(F, W, H, xi_0, A_dot_batch, R_N_inv, snr_train)
             print(f"Batch [{i_batch//batch_size+1}/{len(H_train[0])//batch_size}], Loss: {loss.item():.4f}")
 
             optimizer.zero_grad()
