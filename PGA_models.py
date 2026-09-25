@@ -134,7 +134,7 @@ class PGA_Unfold_JX(nn.Module):
         self.alpha = alpha
 
     # =========== Projection Gradient Ascent execution ===================
-    def execute_PGA(self, H, xi_0, A_dot, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
 
         rate_init, F, W = initialize(H, Pt, initial_normalization)
 
@@ -157,6 +157,9 @@ class PGA_Unfold_JX(nn.Module):
 
         for ii in range(n_iter_outer):
             n_inner = self.step_size.shape[0]
+
+            # compute A_dot which has the minimum 1/CRLB for the given theta_desire_batch
+            A_dot = compute_A_dot(H, F, W, xi_0, theta_desire_batch, R_N_inv, Pt)
     
             if track_metrics:
                 F = inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt)
@@ -178,7 +181,7 @@ class PGA_Unfold_JX(nn.Module):
         rate_over_iters = rate_over_iters.mean(dim=-1, keepdim=True) # dimension: (n_iter_outer, 1, 1)
         crb_over_iters = crb_over_iters.mean(dim=-1, keepdim=True) 
 
-        return (rate_over_iters, crb_over_iters, F, W)
+        return (rate_over_iters, crb_over_iters, F, W, A_dot)
 
 # ============================================== Unfolded PGA with decaying inner iterations ==============================
 class PGA_Unfold_JX_decay(nn.Module):
@@ -194,7 +197,7 @@ class PGA_Unfold_JX_decay(nn.Module):
         self.alpha = alpha
 
     # =========== Projection Gradient Ascent execution ===================
-    def execute_PGA(self, H, xi_0, A_dot, R_N_inv, Pt,n_iter_outer, n_iter_inner, track_metrics=True):
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt,n_iter_outer, n_iter_inner, track_metrics=True):
 
         rate_init, F, W = initialize(H, Pt, initial_normalization)
 
@@ -229,6 +232,9 @@ class PGA_Unfold_JX_decay(nn.Module):
 
         for ii in range(n_iter_outer):
 
+            # compute A_dot which has the minimum 1/CRLB for the given theta_desire_batch
+            A_dot = compute_A_dot(H, F, W, xi_0, theta_desire_batch, R_N_inv, Pt)
+
             grad_F_com = get_grad_F_com(H, F, W)
             grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
 
@@ -261,7 +267,7 @@ class PGA_Unfold_JX_decay(nn.Module):
         rate_over_iters = rate_over_iters.mean(dim=-1, keepdim=True) # dimension
         crb_over_iters = crb_over_iters.mean(dim=-1, keepdim=True) # dimension
 
-        return (rate_over_iters,crb_over_iters,F,W) 
+        return (rate_over_iters,crb_over_iters,F,W,A_dot) 
 
 
 # /////////////////////////////////////////////////////////////////////////////////////////

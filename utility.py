@@ -18,28 +18,55 @@ def randn_complex(shape, device=None):
 # theta_desire_list: the pool of angles from which theta_desire is selected per batch
 theta_desire_list = np.array([0, 45, 90, 135, 180, 225, 270, 315], dtype='float64')
 
-def compute_A_dot(theta_desire):
-    """Compute the A_dot matrix for the given desired angle(s) in degrees.
 
-    Args:
-        theta_desire: scalar or array of desired angles in degrees.
-    Returns:
-        A_dot tensor of shape (Nt, Nt) on the configured device/dtype.
-    """
-    desired_angle_rad = np.radians(np.atleast_1d(theta_desire))  # (n_target,)
-    desired_angle_rad_torch = torch.tensor(desired_angle_rad, dtype=torch.float32)  # (n_target,)
+def _A_dot_from_angle(angle_deg):
+    """Compute the A_dot matrix for a single desired angle in degrees."""
+    desired_angle_rad = np.radians(np.atleast_1d(angle_deg))  # (1,)
+    desired_angle_rad_torch = torch.tensor(desired_angle_rad, dtype=torch.float32)  # (1,)
 
     n_indices_col = n_indices.unsqueeze(1)  # (Nt, 1)
-    sin_angle = torch.sin(desired_angle_rad_torch).unsqueeze(0)  # (1, n_target)
-    cos_angle = torch.cos(desired_angle_rad_torch).unsqueeze(0)  # (1, n_target)
+    sin_angle = torch.sin(desired_angle_rad_torch).unsqueeze(0)  # (1, 1)
+    cos_angle = torch.cos(desired_angle_rad_torch).unsqueeze(0)  # (1, 1)
 
-    phase = 1j * 2 * torch.pi * delta * sin_angle * n_indices_col  # (Nt, n_target)
-    a_phi_0 = torch.exp(phase)  # (Nt, n_target)
-    a_dot_phi_0 = (1j * 2 * torch.pi * delta * cos_angle * n_indices_col) * a_phi_0  # (Nt, n_target)
+    phase = 1j * 2 * torch.pi * delta * sin_angle * n_indices_col  # (Nt, 1)
+    a_phi_0 = torch.exp(phase)  # (Nt, 1)
+    a_dot_phi_0 = (1j * 2 * torch.pi * delta * cos_angle * n_indices_col) * a_phi_0  # (Nt, 1)
 
-    # Sum over targets via matmul: (Nt, n_target) @ (n_target, Nt) -> (Nt, Nt)
+    # (Nt, 1) @ (1, Nt) -> (Nt, Nt)
     A_dot = (a_dot_phi_0 @ a_phi_0.transpose(0, 1) + a_phi_0 @ a_dot_phi_0.transpose(0, 1)).to(COMPLEX_DTYPE).to(device)
     return A_dot
+
+
+def compute_A_dot(H, F, W, xi_0, theta_desire, R_N_inv, Pt):
+    """Compute the A_dot matrix for the angle in theta_desire that yields the
+    smallest 1/CRLB.
+
+    Args:
+        H: channel tensor (K, B, M, Nt)
+        F: analog precoder (K, B, Nt, Nrf)
+        W: digital precoder (K, B, Nrf, M)
+        xi_0: path-loss reference
+        theta_desire: scalar or array of desired angles in degrees.
+        R_N_inv: inverse noise covariance
+        Pt: transmit power
+    Returns:
+        A_dot tensor of shape (Nt, Nt) for the selected angle.
+    """
+    theta_arr = np.atleast_1d(theta_desire)
+    best_A_dot = None
+    best_inv_crb = None
+
+    for ang in theta_arr:
+        A_dot_ang = _A_dot_from_angle(ang)
+        # get_crb_fe returns log(CRLB); 1/CRLB = exp(-crb)
+        inv_crb = get_crb_fe(H, F, W, xi_0, A_dot_ang, R_N_inv, Pt).mean().item()
+        # inv_crb = torch.exp(-crb).mean().item()  # scalar 1/CRLB averaged over batch
+
+        if best_inv_crb is None or inv_crb < best_inv_crb:
+            best_inv_crb = inv_crb
+            best_A_dot = A_dot_ang
+
+    return best_A_dot
 
 
 # ==================================== initialize F and W ===========================

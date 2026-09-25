@@ -186,7 +186,7 @@ if run_program == 1:
         model_UPGA_J1.load_state_dict(torch.load(model_file_name_UPGA_J1, map_location=device))
         register_step_size('UPGA (J=1)', model_UPGA_J1.step_size)
 
-        sum_rate_UPGA_J1, crb_UPGA_J1, F_UPGA_J1, W_UPGA_J1 = model_UPGA_J1.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J1, crb_UPGA_J1, F_UPGA_J1, W_UPGA_J1, _ = model_UPGA_J1.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                              n_iter_inner_J1)
@@ -199,7 +199,7 @@ if run_program == 1:
         model_UPGA_J4 = PGA_Unfold_JX(step_size_UPGA_J4)
         model_UPGA_J4.load_state_dict(torch.load(directory_model + f'UPGA_J4.pth', map_location=device))
         register_step_size('UPGA (J=4)', model_UPGA_J4.step_size)
-        sum_rate_UPGA_J4, crb_UPGA_J4, F_UPGA_J4, W_UPGA_J4 = model_UPGA_J4.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J4, crb_UPGA_J4, F_UPGA_J4, W_UPGA_J4, _ = model_UPGA_J4.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                              n_iter_inner_J4)
@@ -213,7 +213,7 @@ if run_program == 1:
         model_UPGA_J5.load_state_dict(torch.load(model_file_name_UPGA_J5, map_location=device))
         register_step_size('UPGA (J=5)', model_UPGA_J5.step_size)
 
-        sum_rate_UPGA_J5, crb_UPGA_J5, F_UPGA_J5, W_UPGA_J5= model_UPGA_J5.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J5, crb_UPGA_J5, F_UPGA_J5, W_UPGA_J5, _ = model_UPGA_J5.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                              n_iter_inner_J5)
@@ -226,7 +226,7 @@ if run_program == 1:
         model_UPGA_J6 = PGA_Unfold_JX(step_size_UPGA_J6)
         model_UPGA_J6.load_state_dict(torch.load(directory_model + f'UPGA_J6.pth', map_location=device))
         register_step_size('UPGA (J=6)', model_UPGA_J6.step_size)
-        sum_rate_UPGA_J6, crb_UPGA_J6, F_UPGA_J6, W_UPGA_J6 = model_UPGA_J6.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J6, crb_UPGA_J6, F_UPGA_J6, W_UPGA_J6, _ = model_UPGA_J6.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
                                                                                                 snr,
                                                                                                 n_iter_outer,
                                                                                                 n_iter_inner_J6)
@@ -241,7 +241,7 @@ if run_program == 1:
         model_UPGA_J10.load_state_dict(torch.load(model_file_name_UPGA_J10, map_location=device))
         register_step_size('UPGA (J=10)', model_UPGA_J10.step_size)
 
-        sum_rate_UPGA_J10, crb_UPGA_J10, F_UPGA_J10, W_UPGA_J10 = model_UPGA_J10.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J10, crb_UPGA_J10, F_UPGA_J10, W_UPGA_J10, _ = model_UPGA_J10.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                             n_iter_inner_J10)
@@ -257,7 +257,7 @@ if run_program == 1:
         model_UPGA_J20.load_state_dict(torch.load(model_file_name_UPGA_J20, map_location=device))
         register_step_size('UPGA (J=20)', model_UPGA_J20.step_size)
 
-        sum_rate_UPGA_J20, crb_UPGA_J20, F_UPGA_J20, W_UPGA_J20 = model_UPGA_J20.execute_PGA(H_test, xi_0, A_dot, R_N_inv, snr,
+        sum_rate_UPGA_J20, crb_UPGA_J20, F_UPGA_J20, W_UPGA_J20, _ = model_UPGA_J20.execute_PGA(H_test, xi_0, A_dot, R_N_inv, snr,
                                                                                              n_iter_outer,
                                                                                              n_iter_inner_J20)
         rate_iter_UPGA_J20 = sum_rate_UPGA_J20.squeeze().cpu().numpy()
@@ -270,7 +270,7 @@ if run_program == 1:
         model_UPGA_J5_decay.load_state_dict(torch.load(model_file_name_UPGA_J5_decay, map_location=device))
         register_step_size('UPGA (J=5, decay)', model_UPGA_J5_decay.step_size)
 
-        sum_rate_UPGA_J5_decay, crb_UPGA_J5_decay, F_UPGA_J5_decay, W_UPGA_J5_decay = model_UPGA_J5_decay.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J5_decay, crb_UPGA_J5_decay, F_UPGA_J5_decay, W_UPGA_J5_decay, _ = model_UPGA_J5_decay.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                             n_iter_inner_J5)
@@ -284,7 +284,7 @@ if run_program == 1:
         model_UPGA_J10_decay.load_state_dict(torch.load(model_file_name_UPGA_J10_decay, map_location=device))
         register_step_size('UPGA (J=10, decay)', model_UPGA_J10_decay.step_size)
 
-        sum_rate_UPGA_J10_decay, crb_UPGA_J10_decay, F_UPGA_J10_decay, W_UPGA_J10_decay = model_UPGA_J10_decay.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J10_decay, crb_UPGA_J10_decay, F_UPGA_J10_decay, W_UPGA_J10_decay, _ = model_UPGA_J10_decay.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                             n_iter_inner_J10)
@@ -297,7 +297,7 @@ if run_program == 1:
         model_UPGA_J20_decay.load_state_dict(torch.load(model_file_name_UPGA_J20_decay, map_location=device))
         register_step_size('UPGA (J=20, decay)', model_UPGA_J20_decay.step_size)
 
-        sum_rate_UPGA_J20_decay, crb_UPGA_J20_decay, F_UPGA_J20_decay, W_UPGA_J20_decay = model_UPGA_J20_decay.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J20_decay, crb_UPGA_J20_decay, F_UPGA_J20_decay, W_UPGA_J20_decay, _ = model_UPGA_J20_decay.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                             n_iter_inner_J20)
