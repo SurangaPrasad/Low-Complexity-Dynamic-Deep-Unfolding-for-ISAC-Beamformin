@@ -16,7 +16,7 @@ def randn_complex(shape, device=None):
 
 # ========================= COMPUTE A_dot FROM A GIVEN ANGLE =========================
 # theta_desire_list: the pool of angles from which theta_desire is selected per batch
-theta_desire_list = np.array([0, 45, 90, 135, 180, 225, 270, 315], dtype='float64')
+theta_desire_list = np.array([-60, 0, 60], dtype='float64')
 
 
 def _A_dot_from_angle(angle_deg):
@@ -54,16 +54,15 @@ def compute_A_dot(H, F, W, xi_0, theta_desire, R_N_inv, Pt):
     """
     theta_arr = np.atleast_1d(theta_desire)
     best_A_dot = None
-    best_inv_crb = None
+    best_log_inv_crb = None
 
     for ang in theta_arr:
         A_dot_ang = _A_dot_from_angle(ang)
-        # get_crb_fe returns log(CRLB); 1/CRLB = exp(-crb)
-        inv_crb = get_crb_fe(H, F, W, xi_0, A_dot_ang, R_N_inv, Pt).mean().item()
-        # inv_crb = torch.exp(-crb).mean().item()  # scalar 1/CRLB averaged over batch
+        # get_crb_fe returns log(1/CRLB); select the angle with the SMALLEST 1/CRLB (worst sensing)
+        log_inv_crb = get_crb_fe(H, F, W, xi_0, A_dot_ang, R_N_inv, Pt).mean().item()
 
-        if best_inv_crb is None or inv_crb < best_inv_crb:
-            best_inv_crb = inv_crb
+        if best_log_inv_crb is None or log_inv_crb < best_log_inv_crb:
+            best_log_inv_crb = log_inv_crb
             best_A_dot = A_dot_ang
 
     return best_A_dot
