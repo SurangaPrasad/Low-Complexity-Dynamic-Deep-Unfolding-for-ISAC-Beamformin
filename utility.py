@@ -26,15 +26,18 @@ def compute_A_dot(theta_desire):
     Returns:
         A_dot tensor of shape (Nt, Nt) on the configured device/dtype.
     """
-    desired_angle_rad = np.radians(np.atleast_1d(theta_desire))
-    desired_angle_rad_torch = torch.tensor(desired_angle_rad, dtype=torch.float32)
-    phase = 1j * 2 * torch.pi * delta * torch.sin(desired_angle_rad_torch) * n_indices
-    a_phi_0 = torch.exp(phase)  # shape: (Nt,)
-    a_dot_phi_0 = ((1j * 2 * torch.pi * delta * torch.cos(desired_angle_rad_torch) * n_indices) * a_phi_0)
+    desired_angle_rad = np.radians(np.atleast_1d(theta_desire))  # (n_target,)
+    desired_angle_rad_torch = torch.tensor(desired_angle_rad, dtype=torch.float32)  # (n_target,)
 
-    a_phi_0 = a_phi_0.unsqueeze(1)  # shape: (Nt, 1)
-    a_dot_phi_0 = a_dot_phi_0.unsqueeze(1)  # shape: (Nt, 1)
+    n_indices_col = n_indices.unsqueeze(1)  # (Nt, 1)
+    sin_angle = torch.sin(desired_angle_rad_torch).unsqueeze(0)  # (1, n_target)
+    cos_angle = torch.cos(desired_angle_rad_torch).unsqueeze(0)  # (1, n_target)
 
+    phase = 1j * 2 * torch.pi * delta * sin_angle * n_indices_col  # (Nt, n_target)
+    a_phi_0 = torch.exp(phase)  # (Nt, n_target)
+    a_dot_phi_0 = (1j * 2 * torch.pi * delta * cos_angle * n_indices_col) * a_phi_0  # (Nt, n_target)
+
+    # Sum over targets via matmul: (Nt, n_target) @ (n_target, Nt) -> (Nt, Nt)
     A_dot = (a_dot_phi_0 @ a_phi_0.transpose(0, 1) + a_phi_0 @ a_dot_phi_0.transpose(0, 1)).to(COMPLEX_DTYPE).to(device)
     return A_dot
 
