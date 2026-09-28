@@ -146,7 +146,7 @@ if run_program == 1:
         print('Running conventional PGA with J = 5...')
         model_conv_PGA_J5 = PGA_Unfold_JX(step_size_UPGA_J5)  # Reuse the same shape of step sizes as J5
         register_step_size('Conv PGA (J=5)', model_conv_PGA_J5.step_size)
-        rate_conv_PGA_J5, crb_conv_PGA_J5, F_conv_PGA_J5, W_conv_PGA_J5 = model_conv_PGA_J5.execute_PGA(H_test, xi_0, theta_desire, R_N_inv, snr, n_iter_outer, n_iter_inner_J5)  # Use n_iter_inner_J5 as J=5
+        rate_conv_PGA_J5, crb_conv_PGA_J5, F_conv_PGA_J5, W_conv_PGA_J5, _ = model_conv_PGA_J5.execute_PGA(H_test, xi_0, theta_desire, R_N_inv, snr, n_iter_outer, n_iter_inner_J5)  # Use n_iter_inner_J5 as J=5
 
         rate_iter_conv_PGA_J5  = rate_conv_PGA_J5.squeeze().cpu().numpy()
         crb_iter_conv_PGA_J5   = crb_conv_PGA_J5.squeeze().cpu().numpy()
