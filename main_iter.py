@@ -301,8 +301,16 @@ if run_program == 1:
         rate_iter_UPGA_J20_decay  = sum_rate_UPGA_J20_decay.squeeze().cpu().numpy()
         crb_iter_UPGA_J20_decay   = crb_UPGA_J20_decay.squeeze().cpu().numpy()
 
-    
-    if run_PGA_Conv_line_search == 1:
+    if run_PGA_Conv_J5_line_search == 1:
+        print('Running unfolded PGA with line search (J = 5)...')
+        model_PGA_Conv_J5_LS = PGA_Conv_line_search(step_size_UPGA_J5)
+        register_step_size('UPGA (J=5, line search)', model_PGA_Conv_J5_LS.step_size)
+
+        sum_rate_PGA_Conv_J5_LS, crb_PGA_Conv_J5_LS, F_PGA_Conv_J5_LS, W_PGA_Conv_J5_LS, _ = model_PGA_Conv_J5_LS.execute_PGA(H_test, xi_0, theta_desire, R_N_inv, snr, n_iter_outer, n_iter_inner_J5)
+        rate_iter_PGA_Conv_J5_LS  = sum_rate_PGA_Conv_J5_LS.squeeze().cpu().numpy()
+        crb_iter_PGA_Conv_J5_LS   = crb_PGA_Conv_J5_LS.squeeze().cpu().numpy()
+
+    if run_PGA_Conv_J10_line_search == 1:
         print('Running unfolded PGA with line search (J = 10)...')
         model_PGA_Conv_J10_LS = PGA_Conv_line_search(step_size_UPGA_J10)
         register_step_size('UPGA (J=10, line search)', model_PGA_Conv_J10_LS.step_size)
@@ -477,7 +485,10 @@ if plot_figure == 1:
     if run_UPGA_J10_decay == 1:
         obj_iter_UPGA_J10_decay = OMEGA * rate_iter_UPGA_J10_decay+ crb_iter_UPGA_J10_decay
         plt.plot(iter_outer_x, obj_iter_UPGA_J10_decay, '-', markevery=5, color='green', linewidth=3, markersize=7, label=label_UPGA_J10_decay)
-    if run_PGA_Conv_line_search == 1:
+    if run_PGA_Conv_J5_line_search == 1:
+        obj_iter_PGA_Conv_J5_LS = OMEGA * rate_iter_PGA_Conv_J5_LS + crb_iter_PGA_Conv_J5_LS
+        plt.plot(iter_outer_x, obj_iter_PGA_Conv_J5_LS, '-d', markevery=5, color='teal', linewidth=3, markersize=7, label=label_PGA_Conv_J5_LS)
+    if run_PGA_Conv_J10_line_search == 1:
         obj_iter_PGA_Conv_J10_LS = OMEGA * rate_iter_PGA_Conv_J10_LS + crb_iter_PGA_Conv_J10_LS
         plt.plot(iter_outer_x, obj_iter_PGA_Conv_J10_LS, '-*', markevery=5, color='teal', linewidth=3, markersize=7, label=label_PGA_Conv_J10_LS)
 

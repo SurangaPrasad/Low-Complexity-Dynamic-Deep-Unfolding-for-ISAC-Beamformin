@@ -159,9 +159,7 @@ class PGA_Conv_line_search(nn.Module):
 
                     F_candidate = project_unit_modulus(F + step_F * grad_F)
                     candidate_objective = objective(F_candidate, W, A_dot)
-                    directional_gain = torch.real(
-                        torch.sum(grad_F.conj() * (F_candidate - F), dim=(-2, -1)).mean()
-                    )
+                    directional_gain = torch.real(torch.sum(grad_F.conj() * (F_candidate - F), dim=(-2, -1)).mean())
 
                     if candidate_objective >= current_objective + armijo_c1 * step_F * directional_gain:
                         F = F_candidate

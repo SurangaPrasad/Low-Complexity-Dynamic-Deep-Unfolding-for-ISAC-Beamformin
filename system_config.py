@@ -12,23 +12,24 @@ print(f"Using device: {device}")
 
 #/////////////////////////// CONSIONDER SCHEMES /////////////////////////////////////////////////////////
 run_conv_PGA = 0           # Conventional PGA without unfolding
-run_conv_PGA_J5 = 0        # Conventional PGA with setting J = 5
+run_conv_PGA_J5 = 1        # Conventional PGA with setting J = 5
 run_conv_PGA_J10 = 1       # Conventional PGA with setting J = 10
 run_conv_PGA_J20 = 0
 run_conv_PGA_J10_PC = 0    # Conventional PGA with J = 10 and partial coupling (PC) 
 run_UPGA_J1 = 0            # Unfolded PGA without any modification (J = 1)
 run_UPGA_J4 = 0
-run_UPGA_J5 = 0            # Unfolded PGA with setting J = 5
+run_UPGA_J5 = 1            # Unfolded PGA with setting J = 5
 run_UPGA_J6 = 0            # Unfolded PGA with setting J = 6 (for ablation on inner iteration number)
-run_UPGA_J10 = 0           # Unfolded PGA with setting J = 10
+run_UPGA_J10 = 1           # Unfolded PGA with setting J = 10
 run_UPGA_J20 = 0           # Unfolded PGA with setting J = 20
 
-run_UPGA_J5_decay = 0        # Unfolded PGA with decaying inner iterations (J_max=5 → 1)
-run_UPGA_J10_decay = 0       # Unfolded PGA with decaying inner iterations (J_max=10 → 1)
+run_UPGA_J5_decay = 1        # Unfolded PGA with decaying inner iterations (J_max=5 → 1)
+run_UPGA_J10_decay = 1       # Unfolded PGA with decaying inner iterations (J_max=10 → 1)
 run_UPGA_J20_decay = 0       # Unfolded PGA with decaying inner iterations (J_max=20 → 1)
 
 
-run_PGA_Conv_line_search = 1      # Unfolded PGA with line search (J = 10)
+run_PGA_Conv_J5_line_search = 1      # Unfolded PGA with line search (J = 5)
+run_PGA_Conv_J10_line_search = 1      # Unfolded PGA with line search (J = 10)
 
 
 # ////////////////////////////////////////////// SYSTEM PARAMS //////////////////////////////////////////////
@@ -127,7 +128,6 @@ step_size_UPGA_J5_decay = torch.full([n_iter_inner_J5, n_iter_outer, K + 1], ste
 step_size_UPGA_J10_decay = torch.full([n_iter_inner_J10, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
 step_size_UPGA_J20_decay = torch.full([n_iter_inner_J20, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
 # J_GradReuse uses the same shape as J10; gradient reuse logic is handled inside execute_PGA
-step_size_UPGA_J_GradReuse = torch.full([n_iter_inner_J10, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
 
 
 directory_data = "./dataset/" + system_config + "/"
@@ -195,6 +195,7 @@ label_UPGA_J20_decay = r'Dynamic-UPGA, $20$ inner layers'
 label_UPGA_J_GradReuse = r'UPGA ' + r'$(J=' + str(n_iter_inner_J10) + r', \mathrm{GradReuse})$'
 label_ZF = 'ZF (digital, comm. only)'
 label_SCA = 'SCA-ManOpt (converged)'
+label_PGA_Conv_J5_LS = r'Conv. PGA, $600$ inner iterations, line search'
 label_PGA_Conv_J10_LS = r'Conv. PGA, $1200$ inner iterations, line search'
 
 Conv_PGA_J1 = r'Conv. PGA, $120$ inner iterations'
