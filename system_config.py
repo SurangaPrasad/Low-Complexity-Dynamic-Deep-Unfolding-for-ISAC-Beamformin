@@ -105,10 +105,10 @@ R_N_inv = torch.linalg.inv(R_N).to(COMPLEX_DTYPE).to(device)  # pre-cast to comp
 
 ########################### Line search parameters for conventional PGA with line search
 armijo_c1 = 1e-4
-armijo_beta_F = 0.5
-armijo_beta_W = 0.5
-armijo_initial_step_F = 0.1
-armijo_initial_step_W = 0.1
+armijo_beta_F = 0.2
+armijo_beta_W = 0.2
+armijo_initial_step_F = 0.01
+armijo_initial_step_W = 0.01
 armijo_min_step = 1e-8
 max_line_search = 10
 
