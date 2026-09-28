@@ -134,7 +134,7 @@ if run_program == 1:
         print('Running conventional PGA with J = 1...')
         model_conv_PGA_J1 = PGA_Unfold_JX(step_size_UPGA_J1)  # Reuse the same shape of step sizes as J1
         register_step_size('Conv PGA (J=1)', model_conv_PGA_J1.step_size)
-        rate_conv_PGA_J1, crb_conv_PGA_J1, F_conv_PGA_J1, W_conv_PGA_J1 = model_conv_PGA_J1.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        rate_conv_PGA_J1, crb_conv_PGA_J1, F_conv_PGA_J1, W_conv_PGA_J1 = model_conv_PGA_J1.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                              n_iter_inner_J1)  # Use n_iter_inner_J1 as J=1
@@ -146,7 +146,7 @@ if run_program == 1:
         print('Running conventional PGA with J = 5...')
         model_conv_PGA_J5 = PGA_Unfold_JX(step_size_UPGA_J5)  # Reuse the same shape of step sizes as J5
         register_step_size('Conv PGA (J=5)', model_conv_PGA_J5.step_size)
-        rate_conv_PGA_J5, crb_conv_PGA_J5, F_conv_PGA_J5, W_conv_PGA_J5 = model_conv_PGA_J5.execute_PGA(H_test, xi_0, A_dot, R_N_inv, snr, n_iter_outer, n_iter_inner_J5)  # Use n_iter_inner_J5 as J=5
+        rate_conv_PGA_J5, crb_conv_PGA_J5, F_conv_PGA_J5, W_conv_PGA_J5 = model_conv_PGA_J5.execute_PGA(H_test, xi_0, theta_desire, R_N_inv, snr, n_iter_outer, n_iter_inner_J5)  # Use n_iter_inner_J5 as J=5
 
         rate_iter_conv_PGA_J5  = rate_conv_PGA_J5.squeeze().cpu().numpy()
         crb_iter_conv_PGA_J5   = crb_conv_PGA_J5.squeeze().cpu().numpy()
@@ -158,10 +158,7 @@ if run_program == 1:
         print('Running conventional PGA with J = 10...')
         model_conv_PGA_J10 = PGA_Unfold_JX(step_size_UPGA_J10)
         register_step_size('Conv PGA (J=10)', model_conv_PGA_J10.step_size)
-        rate_conv_PGA_J10, crb_conv_PGA_J10, F_conv_PGA_J10, W_conv_PGA_J10 = model_conv_PGA_J10.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
-                                                                                             snr,
-                                                                                             n_iter_outer,
-                                                                                             n_iter_inner_J10)
+        rate_conv_PGA_J10, crb_conv_PGA_J10, F_conv_PGA_J10, W_conv_PGA_J10, _ = model_conv_PGA_J10.execute_PGA(H_test, xi_0, theta_desire, R_N_inv, snr, n_iter_outer, n_iter_inner_J10)
         # rate_conv_PGA_J10: (B, n_outer*(J+1))  — average over batch
         rate_iter_conv_PGA_J10  = rate_conv_PGA_J10.squeeze().cpu().numpy()
         crb_iter_conv_PGA_J10   = crb_conv_PGA_J10.squeeze().cpu().numpy()
@@ -171,7 +168,7 @@ if run_program == 1:
         print('Running conventional PGA with J = 20...')
         model_conv_PGA_J20 = PGA_Unfold_JX(step_size_UPGA_J20)
         register_step_size('Conv PGA (J=20)', model_conv_PGA_J20.step_size)
-        rate_conv_PGA_J20, crb_conv_PGA_J20, F_conv_PGA_J20, W_conv_PGA_J20 = model_conv_PGA_J20.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        rate_conv_PGA_J20, crb_conv_PGA_J20, F_conv_PGA_J20, W_conv_PGA_J20 = model_conv_PGA_J20.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                              n_iter_inner_J20)
@@ -186,7 +183,7 @@ if run_program == 1:
         model_UPGA_J1.load_state_dict(torch.load(model_file_name_UPGA_J1, map_location=device))
         register_step_size('UPGA (J=1)', model_UPGA_J1.step_size)
 
-        sum_rate_UPGA_J1, crb_UPGA_J1, F_UPGA_J1, W_UPGA_J1, _ = model_UPGA_J1.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J1, crb_UPGA_J1, F_UPGA_J1, W_UPGA_J1, _ = model_UPGA_J1.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                              n_iter_inner_J1)
@@ -199,7 +196,7 @@ if run_program == 1:
         model_UPGA_J4 = PGA_Unfold_JX(step_size_UPGA_J4)
         model_UPGA_J4.load_state_dict(torch.load(directory_model + f'UPGA_J4.pth', map_location=device))
         register_step_size('UPGA (J=4)', model_UPGA_J4.step_size)
-        sum_rate_UPGA_J4, crb_UPGA_J4, F_UPGA_J4, W_UPGA_J4, _ = model_UPGA_J4.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J4, crb_UPGA_J4, F_UPGA_J4, W_UPGA_J4, _ = model_UPGA_J4.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                              n_iter_inner_J4)
@@ -213,7 +210,7 @@ if run_program == 1:
         model_UPGA_J5.load_state_dict(torch.load(model_file_name_UPGA_J5, map_location=device))
         register_step_size('UPGA (J=5)', model_UPGA_J5.step_size)
 
-        sum_rate_UPGA_J5, crb_UPGA_J5, F_UPGA_J5, W_UPGA_J5, _ = model_UPGA_J5.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J5, crb_UPGA_J5, F_UPGA_J5, W_UPGA_J5, _ = model_UPGA_J5.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                              n_iter_inner_J5)
@@ -226,7 +223,7 @@ if run_program == 1:
         model_UPGA_J6 = PGA_Unfold_JX(step_size_UPGA_J6)
         model_UPGA_J6.load_state_dict(torch.load(directory_model + f'UPGA_J6.pth', map_location=device))
         register_step_size('UPGA (J=6)', model_UPGA_J6.step_size)
-        sum_rate_UPGA_J6, crb_UPGA_J6, F_UPGA_J6, W_UPGA_J6, _ = model_UPGA_J6.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J6, crb_UPGA_J6, F_UPGA_J6, W_UPGA_J6, _ = model_UPGA_J6.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
                                                                                                 snr,
                                                                                                 n_iter_outer,
                                                                                                 n_iter_inner_J6)
@@ -241,7 +238,7 @@ if run_program == 1:
         model_UPGA_J10.load_state_dict(torch.load(model_file_name_UPGA_J10, map_location=device))
         register_step_size('UPGA (J=10)', model_UPGA_J10.step_size)
 
-        sum_rate_UPGA_J10, crb_UPGA_J10, F_UPGA_J10, W_UPGA_J10, _ = model_UPGA_J10.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J10, crb_UPGA_J10, F_UPGA_J10, W_UPGA_J10, _ = model_UPGA_J10.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                             n_iter_inner_J10)
@@ -257,7 +254,7 @@ if run_program == 1:
         model_UPGA_J20.load_state_dict(torch.load(model_file_name_UPGA_J20, map_location=device))
         register_step_size('UPGA (J=20)', model_UPGA_J20.step_size)
 
-        sum_rate_UPGA_J20, crb_UPGA_J20, F_UPGA_J20, W_UPGA_J20, _ = model_UPGA_J20.execute_PGA(H_test, xi_0, A_dot, R_N_inv, snr,
+        sum_rate_UPGA_J20, crb_UPGA_J20, F_UPGA_J20, W_UPGA_J20, _ = model_UPGA_J20.execute_PGA(H_test, xi_0, theta_desire, R_N_inv, snr,
                                                                                              n_iter_outer,
                                                                                              n_iter_inner_J20)
         rate_iter_UPGA_J20 = sum_rate_UPGA_J20.squeeze().cpu().numpy()
@@ -270,7 +267,7 @@ if run_program == 1:
         model_UPGA_J5_decay.load_state_dict(torch.load(model_file_name_UPGA_J5_decay, map_location=device))
         register_step_size('UPGA (J=5, decay)', model_UPGA_J5_decay.step_size)
 
-        sum_rate_UPGA_J5_decay, crb_UPGA_J5_decay, F_UPGA_J5_decay, W_UPGA_J5_decay, _ = model_UPGA_J5_decay.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J5_decay, crb_UPGA_J5_decay, F_UPGA_J5_decay, W_UPGA_J5_decay, _ = model_UPGA_J5_decay.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                             n_iter_inner_J5)
@@ -284,7 +281,7 @@ if run_program == 1:
         model_UPGA_J10_decay.load_state_dict(torch.load(model_file_name_UPGA_J10_decay, map_location=device))
         register_step_size('UPGA (J=10, decay)', model_UPGA_J10_decay.step_size)
 
-        sum_rate_UPGA_J10_decay, crb_UPGA_J10_decay, F_UPGA_J10_decay, W_UPGA_J10_decay, _ = model_UPGA_J10_decay.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J10_decay, crb_UPGA_J10_decay, F_UPGA_J10_decay, W_UPGA_J10_decay, _ = model_UPGA_J10_decay.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                             n_iter_inner_J10)
@@ -297,13 +294,22 @@ if run_program == 1:
         model_UPGA_J20_decay.load_state_dict(torch.load(model_file_name_UPGA_J20_decay, map_location=device))
         register_step_size('UPGA (J=20, decay)', model_UPGA_J20_decay.step_size)
 
-        sum_rate_UPGA_J20_decay, crb_UPGA_J20_decay, F_UPGA_J20_decay, W_UPGA_J20_decay, _ = model_UPGA_J20_decay.execute_PGA(H_test, xi_0, A_dot, R_N_inv,
+        sum_rate_UPGA_J20_decay, crb_UPGA_J20_decay, F_UPGA_J20_decay, W_UPGA_J20_decay, _ = model_UPGA_J20_decay.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                             n_iter_inner_J20)
         rate_iter_UPGA_J20_decay  = sum_rate_UPGA_J20_decay.squeeze().cpu().numpy()
         crb_iter_UPGA_J20_decay   = crb_UPGA_J20_decay.squeeze().cpu().numpy()
+
     
+    if run_PGA_Conv_line_search == 1:
+        print('Running unfolded PGA with line search (J = 10)...')
+        model_PGA_Conv_J10_LS = PGA_Conv_line_search(step_size_UPGA_J10)
+        register_step_size('UPGA (J=10, line search)', model_PGA_Conv_J10_LS.step_size)
+
+        sum_rate_PGA_Conv_J10_LS, crb_PGA_Conv_J10_LS, F_PGA_Conv_J10_LS, W_PGA_Conv_J10_LS, _ = model_PGA_Conv_J10_LS.execute_PGA(H_test, xi_0, theta_desire, R_N_inv, snr, n_iter_outer, n_iter_inner_J10)
+        rate_iter_PGA_Conv_J10_LS  = sum_rate_PGA_Conv_J10_LS.squeeze().cpu().numpy()
+        crb_iter_PGA_Conv_J10_LS   = crb_PGA_Conv_J10_LS.squeeze().cpu().numpy()
 
 if plot_figure == 1:
 
@@ -471,6 +477,9 @@ if plot_figure == 1:
     if run_UPGA_J10_decay == 1:
         obj_iter_UPGA_J10_decay = OMEGA * rate_iter_UPGA_J10_decay+ crb_iter_UPGA_J10_decay
         plt.plot(iter_outer_x, obj_iter_UPGA_J10_decay, '-', markevery=5, color='green', linewidth=3, markersize=7, label=label_UPGA_J10_decay)
+    if run_PGA_Conv_line_search == 1:
+        obj_iter_PGA_Conv_J10_LS = OMEGA * rate_iter_PGA_Conv_J10_LS + crb_iter_PGA_Conv_J10_LS
+        plt.plot(iter_outer_x, obj_iter_PGA_Conv_J10_LS, '-*', markevery=5, color='teal', linewidth=3, markersize=7, label=label_PGA_Conv_J10_LS)
 
     plt.xlabel(r'Number of iterations/layers $(I)$', fontsize=14)
     plt.ylabel(r'$\omega R + \log(\text{CRLB}^{-1})$', fontsize=14)

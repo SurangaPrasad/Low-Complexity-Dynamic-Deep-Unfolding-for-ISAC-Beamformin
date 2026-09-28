@@ -12,20 +12,23 @@ print(f"Using device: {device}")
 
 #/////////////////////////// CONSIONDER SCHEMES /////////////////////////////////////////////////////////
 run_conv_PGA = 0           # Conventional PGA without unfolding
-run_conv_PGA_J5 = 1        # Conventional PGA with setting J = 5
+run_conv_PGA_J5 = 0        # Conventional PGA with setting J = 5
 run_conv_PGA_J10 = 1       # Conventional PGA with setting J = 10
 run_conv_PGA_J20 = 0
 run_conv_PGA_J10_PC = 0    # Conventional PGA with J = 10 and partial coupling (PC) 
 run_UPGA_J1 = 0            # Unfolded PGA without any modification (J = 1)
 run_UPGA_J4 = 0
-run_UPGA_J5 = 1            # Unfolded PGA with setting J = 5
+run_UPGA_J5 = 0            # Unfolded PGA with setting J = 5
 run_UPGA_J6 = 0            # Unfolded PGA with setting J = 6 (for ablation on inner iteration number)
-run_UPGA_J10 = 1           # Unfolded PGA with setting J = 10
+run_UPGA_J10 = 0           # Unfolded PGA with setting J = 10
 run_UPGA_J20 = 0           # Unfolded PGA with setting J = 20
 
-run_UPGA_J5_decay = 1        # Unfolded PGA with decaying inner iterations (J_max=5 → 1)
-run_UPGA_J10_decay = 1       # Unfolded PGA with decaying inner iterations (J_max=10 → 1)
+run_UPGA_J5_decay = 0        # Unfolded PGA with decaying inner iterations (J_max=5 → 1)
+run_UPGA_J10_decay = 0       # Unfolded PGA with decaying inner iterations (J_max=10 → 1)
 run_UPGA_J20_decay = 0       # Unfolded PGA with decaying inner iterations (J_max=20 → 1)
+
+
+run_PGA_Conv_line_search = 1      # Unfolded PGA with line search (J = 10)
 
 
 # ////////////////////////////////////////////// SYSTEM PARAMS //////////////////////////////////////////////
@@ -99,6 +102,16 @@ R_N = torch.eye(Nt)  # noise covariance matrix
 R_N_inv = torch.linalg.inv(R_N).to(COMPLEX_DTYPE).to(device)  # pre-cast to complex64 and move to device
 
 
+########################### Line search parameters for conventional PGA with line search
+armijo_c1 = 1e-4
+armijo_beta_F = 0.5
+armijo_beta_W = 0.5
+armijo_initial_step_F = 0.1
+armijo_initial_step_W = 0.1
+armijo_min_step = 1e-8
+max_line_search = 10
+
+
 # ========================== initiate step sizes as tensor for training ================
 step_size_fixed = 1e-2  # step size of conventional PGA
 step_size_conv_PGA = torch.full([n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
@@ -149,6 +162,9 @@ model_file_name_UPGA_J10_decay = directory_model + 'UPGA_J10_decay.pth'
 model_file_name_UPGA_J20_decay = directory_model + 'UPGA_J20_decay.pth'
 model_file_name_UPGA_J_GradReuse = directory_model + 'UPGA_J_GradReuse.pth'
 model_file_name_UPGA_J10_PC_omega03 = directory_model03 + 'UPGA_J10_PC.pth'
+
+model_file_name_PGA_Conv_J10_LS = directory_model + 'PGA_Conv_J10_LS.pth'
+
 # To save result figures
 directory_result = "./sim_results/" + system_config + "/"
 if not os.path.exists(directory_result):
@@ -179,6 +195,7 @@ label_UPGA_J20_decay = r'Dynamic-UPGA, $20$ inner layers'
 label_UPGA_J_GradReuse = r'UPGA ' + r'$(J=' + str(n_iter_inner_J10) + r', \mathrm{GradReuse})$'
 label_ZF = 'ZF (digital, comm. only)'
 label_SCA = 'SCA-ManOpt (converged)'
+label_PGA_Conv_J10_LS = r'Conv. PGA, $1200$ inner iterations, line search'
 
 Conv_PGA_J1 = r'Conv. PGA, $120$ inner iterations'
 Conv_PGA_J5 = r'Conv. PGA, $600$ inner iterations'
