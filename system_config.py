@@ -28,8 +28,8 @@ run_UPGA_J10_decay = 0       # Unfolded PGA with decaying inner iterations (J_ma
 run_UPGA_J20_decay = 0       # Unfolded PGA with decaying inner iterations (J_max=20 → 1)
 
 
-run_PGA_Conv_J5_line_search = 1      # Unfolded PGA with line search (J = 5)
-run_PGA_Conv_J10_line_search = 1      # Unfolded PGA with line search (J = 10)
+run_PGA_Conv_J5_line_search = 0      # Unfolded PGA with line search (J = 5)
+run_PGA_Conv_J10_line_search = 0      # Unfolded PGA with line search (J = 10)
 
 
 # ////////////////////////////////////////////// SYSTEM PARAMS //////////////////////////////////////////////
