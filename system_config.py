@@ -23,8 +23,8 @@ run_UPGA_J6 = 0            # Unfolded PGA with setting J = 6 (for ablation on in
 run_UPGA_J10 = 1           # Unfolded PGA with setting J = 10
 run_UPGA_J20 = 0           # Unfolded PGA with setting J = 20
 
-run_UPGA_J5_decay = 1        # Unfolded PGA with decaying inner iterations (J_max=5 → 1)
-run_UPGA_J10_decay = 1       # Unfolded PGA with decaying inner iterations (J_max=10 → 1)
+run_UPGA_J5_decay = 0        # Unfolded PGA with decaying inner iterations (J_max=5 → 1)
+run_UPGA_J10_decay = 0       # Unfolded PGA with decaying inner iterations (J_max=10 → 1)
 run_UPGA_J20_decay = 0       # Unfolded PGA with decaying inner iterations (J_max=20 → 1)
 
 
@@ -37,8 +37,10 @@ Nt = 64                 # Num of Tx antennas
 M = 4                   # Num of Users
 Nrf = 4                 # Num of RF chains (must be >= M)
 K = 1                   # Num of frequency bands
+
+
 n_target = 3            # Num of sensing targets
-theta_desire = 45 # Angles of sensing targets
+theta_desire_list = np.array([-60, -30, 0, 30, 60], dtype='float64')
 
 snr_dB = 12                 # SNR for training and showing the convergences
 snr = 10 ** (snr_dB / 10)   # transmit power
@@ -77,10 +79,10 @@ n_iter_inner_J20 = 20   # Number of inner iterations (J = 20)
 # ============================ TUNING PARAMETERS ===========================
 WEIGHT_F_RAD = OMEGA  # fixed
 WEIGHT_W_RAD = OMEGA / Nt * K
-WEIGHT_F_COM = OMEGA  
-WEIGHT_W_COM = OMEGA 
-WEIGHT_F_CRB = 1
-WEIGHT_W_CRB = 1
+WEIGHT_F_COM = OMEGA * 2 
+WEIGHT_W_COM = OMEGA * 2
+WEIGHT_F_CRB = 1 * 2
+WEIGHT_W_CRB = 1 * 2
 
 # ========================= CRB PARAMETERS =========================
 # xi_0 = 10 ** (-40 / 10) ## path loss at reference distance (1 m) in linear scale
@@ -107,8 +109,8 @@ R_N_inv = torch.linalg.inv(R_N).to(COMPLEX_DTYPE).to(device)  # pre-cast to comp
 armijo_c1 = 1e-4
 armijo_beta_F = 0.2
 armijo_beta_W = 0.2
-armijo_initial_step_F = 0.01
-armijo_initial_step_W = 0.01
+armijo_initial_step_F = 0.1
+armijo_initial_step_W = 0.1
 armijo_min_step = 1e-8
 max_line_search = 10
 
@@ -201,3 +203,6 @@ label_PGA_Conv_J10_LS = r'Conv. PGA, $1200$ inner iterations, line search'
 Conv_PGA_J1 = r'Conv. PGA, $120$ inner iterations'
 Conv_PGA_J5 = r'Conv. PGA, $600$ inner iterations'
 Conv_PGA_J10 = r'Conv. PGA, $1200$ inner iterations'
+
+
+#### Sensing angles for beampattern design
