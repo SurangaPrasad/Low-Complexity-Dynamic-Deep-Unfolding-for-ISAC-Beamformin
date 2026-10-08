@@ -89,6 +89,7 @@ WEIGHT_W_CRB = 1 * 2
 xi_0 = 1
 lambda_wave = 1 # wavelength normalized
 delta = lambda_wave / 2 # antenna spacing
+theta_desire = 30 # desired angle in degrees
 desired_angle_rad = np.radians(theta_desire) # desired angles in radians
 n_indices = torch.arange(Nt, dtype=torch.float32)
 desired_angle_rad_torch = torch.tensor(desired_angle_rad, dtype=torch.float32)
