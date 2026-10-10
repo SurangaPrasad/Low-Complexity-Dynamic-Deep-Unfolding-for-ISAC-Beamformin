@@ -13,14 +13,14 @@ print(f"Using device: {device}")
 #/////////////////////////// CONSIONDER SCHEMES /////////////////////////////////////////////////////////
 run_conv_PGA = 0           # Conventional PGA without unfolding
 run_conv_PGA_J5 = 1        # Conventional PGA with setting J = 5
-run_conv_PGA_J10 = 1       # Conventional PGA with setting J = 10
+run_conv_PGA_J10 = 0       # Conventional PGA with setting J = 10
 run_conv_PGA_J20 = 0
 run_conv_PGA_J10_PC = 0    # Conventional PGA with J = 10 and partial coupling (PC) 
 run_UPGA_J1 = 0            # Unfolded PGA without any modification (J = 1)
 run_UPGA_J4 = 0
 run_UPGA_J5 = 1            # Unfolded PGA with setting J = 5
 run_UPGA_J6 = 0            # Unfolded PGA with setting J = 6 (for ablation on inner iteration number)
-run_UPGA_J10 = 1           # Unfolded PGA with setting J = 10
+run_UPGA_J10 = 0           # Unfolded PGA with setting J = 10
 run_UPGA_J20 = 0           # Unfolded PGA with setting J = 20
 
 run_UPGA_J5_decay = 0        # Unfolded PGA with decaying inner iterations (J_max=5 → 1)
@@ -28,7 +28,7 @@ run_UPGA_J10_decay = 0       # Unfolded PGA with decaying inner iterations (J_ma
 run_UPGA_J20_decay = 0       # Unfolded PGA with decaying inner iterations (J_max=20 → 1)
 
 
-run_PGA_Conv_J5_line_search = 0      # Unfolded PGA with line search (J = 5)
+run_PGA_Conv_J5_line_search = 1      # Unfolded PGA with line search (J = 5)
 run_PGA_Conv_J10_line_search = 0      # Unfolded PGA with line search (J = 10)
 
 

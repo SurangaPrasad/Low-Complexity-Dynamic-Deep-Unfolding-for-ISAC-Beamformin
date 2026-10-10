@@ -234,6 +234,9 @@ class PGA_Unfold_JX(nn.Module):
 
         rate_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
         crb_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
+        F_over_iters = []
+        W_over_iters = []
+        A_dot_over_iters = []
 
         def inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt):
             for jj in range(n_inner):
@@ -268,12 +271,21 @@ class PGA_Unfold_JX(nn.Module):
             W_new = (W + self.step_size[0][ii][1] * grad_W_k_com * WEIGHT_W_COM + self.step_size[0][ii][1] * grad_W_k_crb * WEIGHT_W_CRB)
 
             F, W = normalize(F, W_new, H, Pt)
+            F_over_iters.append(F)
+            W_over_iters.append(W)
+            A_dot_over_iters.append(A_dot)
 
         ## average over the batch
         rate_over_iters = rate_over_iters.mean(dim=-1, keepdim=True) # dimension: (n_iter_outer, 1, 1)
-        crb_over_iters = crb_over_iters.mean(dim=-1, keepdim=True) 
+        crb_over_iters = crb_over_iters.mean(dim=-1, keepdim=True)
 
-        return (rate_over_iters, crb_over_iters, F, W, A_dot)
+        if track_metrics:
+            return (rate_over_iters, crb_over_iters, F, W, A_dot)
+
+        F_over_iters = torch.stack(F_over_iters, dim=0)
+        W_over_iters = torch.stack(W_over_iters, dim=0)
+        A_dot_over_iters = torch.stack(A_dot_over_iters, dim=0)
+        return (rate_over_iters, crb_over_iters, F_over_iters, W_over_iters, A_dot_over_iters)
 
 # ============================================== Unfolded PGA with decaying inner iterations ==============================
 class PGA_Unfold_JX_decay(nn.Module):
@@ -296,6 +308,9 @@ class PGA_Unfold_JX_decay(nn.Module):
         B = len(H[0])
         rate_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
         crb_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
+        F_over_iters = []
+        W_over_iters = []
+        A_dot_over_iters = []
 
         def _n_inner_from_grad(grad_F_J):
             J_max = self.step_size.shape[0]
@@ -354,12 +369,21 @@ class PGA_Unfold_JX_decay(nn.Module):
 
             # Projection / normalization
             F, W = normalize(F, W_new, H, Pt)
+            F_over_iters.append(F)
+            W_over_iters.append(W)
+            A_dot_over_iters.append(A_dot)
 
         ## average over the batch
         rate_over_iters = rate_over_iters.mean(dim=-1, keepdim=True) # dimension
         crb_over_iters = crb_over_iters.mean(dim=-1, keepdim=True) # dimension
 
-        return (rate_over_iters,crb_over_iters,F,W,A_dot) 
+        if track_metrics:
+            return (rate_over_iters, crb_over_iters, F, W, A_dot)
+
+        F_over_iters = torch.stack(F_over_iters, dim=0)
+        W_over_iters = torch.stack(W_over_iters, dim=0)
+        A_dot_over_iters = torch.stack(A_dot_over_iters, dim=0)
+        return (rate_over_iters, crb_over_iters, F_over_iters, W_over_iters, A_dot_over_iters) 
 
 
 # /////////////////////////////////////////////////////////////////////////////////////////
@@ -763,18 +787,23 @@ def get_grad_W_rad(F, W, R):
     grad_W = grad_W / K
     return grad_W
 
-# ================== Compute exponentially weighted deep-supervision loss
-def get_sum_loss(F, W, H, xi_0, A_dot, R_N_inv, Pt, beta=0.97):
-
+# ================== Deep-supervision loss over outer-iteration (F, W) ==================
+def _iterate_loss(F, W, H, xi_0, A_dot, R_N_inv, Pt):
     sum_rate = get_sum_rate(H, F, W, Pt)
-    crb = get_crb_fe(H, F, W,xi_0, A_dot, R_N_inv, Pt)
+    crb = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt)
+    return -(OMEGA * sum_rate + torch.mean(crb))
 
-    mean_crb = torch.mean(crb)
 
-    loss = -(OMEGA * sum_rate + mean_crb)
-    # loss = -( sum_rate + OMEGA * mean_crb)
+def get_sum_loss(F, W, H, xi_0, A_dot, R_N_inv, Pt, beta=0.97):
+    # Stacked outer iterates: F (n_outer, K, B, Nt, Nrf), A_dot (n_outer, Nt, Nt)
+    if F.dim() == 5:
+        losses = []
+        for t in range(F.shape[0]):
+            A_t = A_dot[t] if A_dot.dim() >= 3 else A_dot
+            losses.append(_iterate_loss(F[t], W[t], H, xi_0, A_t, R_N_inv, Pt))
+        return torch.stack(losses).mean()
 
-    return loss
+    return _iterate_loss(F, W, H, xi_0, A_dot, R_N_inv, Pt)
 
 
 # ================== compute CRLB gradients =========================

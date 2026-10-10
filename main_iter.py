@@ -134,7 +134,7 @@ if run_program == 1:
         print('Running conventional PGA with J = 1...')
         model_conv_PGA_J1 = PGA_Unfold_JX(step_size_UPGA_J1)  # Reuse the same shape of step sizes as J1
         register_step_size('Conv PGA (J=1)', model_conv_PGA_J1.step_size)
-        rate_conv_PGA_J1, crb_conv_PGA_J1, F_conv_PGA_J1, W_conv_PGA_J1 = model_conv_PGA_J1.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
+        rate_conv_PGA_J1, crb_conv_PGA_J1, F_conv_PGA_J1, W_conv_PGA_J1, _ = model_conv_PGA_J1.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                              n_iter_inner_J1)  # Use n_iter_inner_J1 as J=1
@@ -168,7 +168,7 @@ if run_program == 1:
         print('Running conventional PGA with J = 20...')
         model_conv_PGA_J20 = PGA_Unfold_JX(step_size_UPGA_J20)
         register_step_size('Conv PGA (J=20)', model_conv_PGA_J20.step_size)
-        rate_conv_PGA_J20, crb_conv_PGA_J20, F_conv_PGA_J20, W_conv_PGA_J20 = model_conv_PGA_J20.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
+        rate_conv_PGA_J20, crb_conv_PGA_J20, F_conv_PGA_J20, W_conv_PGA_J20, _ = model_conv_PGA_J20.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
                                                                                              snr,
                                                                                              n_iter_outer,
                                                                                              n_iter_inner_J20)
