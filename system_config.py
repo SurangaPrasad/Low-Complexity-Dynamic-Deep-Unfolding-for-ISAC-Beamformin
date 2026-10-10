@@ -13,19 +13,23 @@ print(f"Using device: {device}")
 #/////////////////////////// CONSIONDER SCHEMES /////////////////////////////////////////////////////////
 run_conv_PGA = 0           # Conventional PGA without unfolding
 run_conv_PGA_J5 = 1        # Conventional PGA with setting J = 5
-run_conv_PGA_J10 = 1       # Conventional PGA with setting J = 10
+run_conv_PGA_J10 = 0       # Conventional PGA with setting J = 10
 run_conv_PGA_J20 = 0
 run_conv_PGA_J10_PC = 0    # Conventional PGA with J = 10 and partial coupling (PC) 
 run_UPGA_J1 = 0            # Unfolded PGA without any modification (J = 1)
 run_UPGA_J4 = 0
 run_UPGA_J5 = 1            # Unfolded PGA with setting J = 5
 run_UPGA_J6 = 0            # Unfolded PGA with setting J = 6 (for ablation on inner iteration number)
-run_UPGA_J10 = 1           # Unfolded PGA with setting J = 10
+run_UPGA_J10 = 0           # Unfolded PGA with setting J = 10
 run_UPGA_J20 = 0           # Unfolded PGA with setting J = 20
 
-run_UPGA_J5_decay = 1        # Unfolded PGA with decaying inner iterations (J_max=5 → 1)
-run_UPGA_J10_decay = 1       # Unfolded PGA with decaying inner iterations (J_max=10 → 1)
+run_UPGA_J5_decay = 0        # Unfolded PGA with decaying inner iterations (J_max=5 → 1)
+run_UPGA_J10_decay = 0       # Unfolded PGA with decaying inner iterations (J_max=10 → 1)
 run_UPGA_J20_decay = 0       # Unfolded PGA with decaying inner iterations (J_max=20 → 1)
+
+
+run_PGA_Conv_J5_line_search = 1      # Unfolded PGA with line search (J = 5)
+run_PGA_Conv_J10_line_search = 0      # Unfolded PGA with line search (J = 10)
 
 
 # ////////////////////////////////////////////// SYSTEM PARAMS //////////////////////////////////////////////
@@ -33,8 +37,10 @@ Nt = 64                 # Num of Tx antennas
 M = 4                   # Num of Users
 Nrf = 4                 # Num of RF chains (must be >= M)
 K = 1                   # Num of frequency bands
+
+
 n_target = 3            # Num of sensing targets
-theta_desire = 45 # Angles of sensing targets
+theta_desire_list = np.array([-60, -30, 0, 30, 60], dtype='float64')
 
 snr_dB = 12                 # SNR for training and showing the convergences
 snr = 10 ** (snr_dB / 10)   # transmit power
@@ -71,18 +77,20 @@ n_iter_inner_J20 = 20   # Number of inner iterations (J = 20)
 
 
 # ============================ TUNING PARAMETERS ===========================
+multiplication_factor = 2
 WEIGHT_F_RAD = OMEGA  # fixed
 WEIGHT_W_RAD = OMEGA / Nt * K
-WEIGHT_F_COM = OMEGA  
-WEIGHT_W_COM = OMEGA 
-WEIGHT_F_CRB = 1
-WEIGHT_W_CRB = 1
+WEIGHT_F_COM = OMEGA * multiplication_factor 
+WEIGHT_W_COM = OMEGA * multiplication_factor
+WEIGHT_F_CRB = 1 * multiplication_factor
+WEIGHT_W_CRB = 1 * multiplication_factor
 
 # ========================= CRB PARAMETERS =========================
 # xi_0 = 10 ** (-40 / 10) ## path loss at reference distance (1 m) in linear scale
 xi_0 = 1
 lambda_wave = 1 # wavelength normalized
 delta = lambda_wave / 2 # antenna spacing
+theta_desire = 30 # desired angle in degrees
 desired_angle_rad = np.radians(theta_desire) # desired angles in radians
 n_indices = torch.arange(Nt, dtype=torch.float32)
 desired_angle_rad_torch = torch.tensor(desired_angle_rad, dtype=torch.float32)
@@ -97,6 +105,16 @@ A_dot = (a_dot_phi_0 @ a_phi_0.transpose(0, 1) + a_phi_0 @ a_dot_phi_0.transpose
 
 R_N = torch.eye(Nt)  # noise covariance matrix
 R_N_inv = torch.linalg.inv(R_N).to(COMPLEX_DTYPE).to(device)  # pre-cast to complex64 and move to device
+
+
+########################### Line search parameters for conventional PGA with line search
+armijo_c1 = 1e-4
+armijo_beta_F = 0.2
+armijo_beta_W = 0.2
+armijo_initial_step_F = 0.1
+armijo_initial_step_W = 0.1
+armijo_min_step = 1e-8
+max_line_search = 10
 
 
 # ========================== initiate step sizes as tensor for training ================
@@ -114,7 +132,6 @@ step_size_UPGA_J5_decay = torch.full([n_iter_inner_J5, n_iter_outer, K + 1], ste
 step_size_UPGA_J10_decay = torch.full([n_iter_inner_J10, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
 step_size_UPGA_J20_decay = torch.full([n_iter_inner_J20, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
 # J_GradReuse uses the same shape as J10; gradient reuse logic is handled inside execute_PGA
-step_size_UPGA_J_GradReuse = torch.full([n_iter_inner_J10, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
 
 
 directory_data = "./dataset/" + system_config + "/"
@@ -149,6 +166,9 @@ model_file_name_UPGA_J10_decay = directory_model + 'UPGA_J10_decay.pth'
 model_file_name_UPGA_J20_decay = directory_model + 'UPGA_J20_decay.pth'
 model_file_name_UPGA_J_GradReuse = directory_model + 'UPGA_J_GradReuse.pth'
 model_file_name_UPGA_J10_PC_omega03 = directory_model03 + 'UPGA_J10_PC.pth'
+
+model_file_name_PGA_Conv_J10_LS = directory_model + 'PGA_Conv_J10_LS.pth'
+
 # To save result figures
 directory_result = "./sim_results/" + system_config + "/"
 if not os.path.exists(directory_result):
@@ -179,7 +199,12 @@ label_UPGA_J20_decay = r'Dynamic-UPGA, $20$ inner layers'
 label_UPGA_J_GradReuse = r'UPGA ' + r'$(J=' + str(n_iter_inner_J10) + r', \mathrm{GradReuse})$'
 label_ZF = 'ZF (digital, comm. only)'
 label_SCA = 'SCA-ManOpt (converged)'
+label_PGA_Conv_J5_LS = r'Conv. PGA, $600$ inner iterations, line search'
+label_PGA_Conv_J10_LS = r'Conv. PGA, $1200$ inner iterations, line search'
 
 Conv_PGA_J1 = r'Conv. PGA, $120$ inner iterations'
 Conv_PGA_J5 = r'Conv. PGA, $600$ inner iterations'
 Conv_PGA_J10 = r'Conv. PGA, $1200$ inner iterations'
+
+
+#### Sensing angles for beampattern design

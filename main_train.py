@@ -58,11 +58,11 @@ def run_UPGA(step_size_UPGA):
             snr_train = torch.tensor(10 ** (snr_dB_train / 10), dtype=torch.float32, device=device)
 
             theta_desire_batch = np.random.choice(theta_desire_list, size=n_target, replace=False)
-            A_dot_batch = compute_A_dot(theta_desire_batch)
             
-            rate, __, F, W= model_UPGA.execute_PGA(H, xi_0, A_dot_batch, R_N_inv, snr_train, n_iter_outer, step_size_UPGA.shape[0], track_metrics=False)
-            
-            loss = get_sum_loss(F, W, H, xi_0, A_dot_batch, R_N_inv, snr_train)
+            rate, __, F_over_iters, W_over_iters, A_dot_over_iters = model_UPGA.execute_PGA(H, xi_0, theta_desire_batch, R_N_inv, snr_train, n_iter_outer, step_size_UPGA.shape[0], track_metrics=False)
+
+            # Average the ISAC loss over every outer-iteration (F, W)
+            loss = get_sum_loss(F_over_iters, W_over_iters, H, xi_0, A_dot_over_iters, R_N_inv, snr_train)
             print(f"Batch [{i_batch//batch_size+1}/{len(H_train[0])//batch_size}], Loss: {loss.item():.4f}")
 
             optimizer.zero_grad()
@@ -93,11 +93,10 @@ def run_UPGA_decay(step_size_UPGA_decay):
             snr_train = torch.tensor(10 ** (snr_dB_train / 10), dtype=torch.float32, device=device)
 
             theta_desire_batch = np.random.choice(theta_desire_list, size=n_target, replace=False)
-            A_dot_batch = compute_A_dot(theta_desire_batch)
 
-            __, __, F, W = model_UPGA_decay.execute_PGA(H, xi_0, A_dot_batch, R_N_inv, snr_train, n_iter_outer, step_size_UPGA_decay.shape[0], track_metrics=False)
+            __, __, F_over_iters, W_over_iters, A_dot_over_iters = model_UPGA_decay.execute_PGA(H, xi_0, theta_desire_batch, R_N_inv, snr_train, n_iter_outer, step_size_UPGA_decay.shape[0], track_metrics=False)
 
-            loss = get_sum_loss(F, W, H, xi_0, A_dot_batch, R_N_inv, snr_train)
+            loss = get_sum_loss(F_over_iters, W_over_iters, H, xi_0, A_dot_over_iters, R_N_inv, snr_train)
             print(f"Batch [{i_batch//batch_size+1}/{len(H_train[0])//batch_size}], Loss: {loss.item():.4f}")
 
             optimizer.zero_grad()

@@ -121,6 +121,98 @@ class PGA_Conv(nn.Module):
         taus  = torch.cat([tau_init,  tau_over_iters],  dim=0)
         return torch.transpose(rates, 0, 1), torch.transpose(taus, 0, 1), F, W
 
+# ============================================== Conventional PGA with line search ==============================
+
+class PGA_Conv_line_search(nn.Module):
+    def __init__(self, step_size):
+        super().__init__()
+
+        self.step_size = nn.Parameter(step_size)  # parameters = (mu, lambda)
+
+
+    # =========== Projection Gradient Ascent execution ===================
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
+
+        _, F, W = initialize(H, Pt, initial_normalization)
+
+        B = len(H[0])
+
+        rate_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
+        crb_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
+
+        def objective(F_eval, W_eval, A_dot):
+            rate = get_sum_rate(H, F_eval, W_eval, Pt)
+            log_inv_crb = get_crb_fe(H, F_eval, W_eval, xi_0, A_dot, R_N_inv, Pt).mean()
+            return WEIGHT_F_COM * rate + WEIGHT_F_CRB * log_inv_crb
+
+        def inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt):
+            for jj in range(n_inner):
+                grad_F_com = get_grad_F_com(H, F, W)
+                grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
+                grad_F = WEIGHT_F_COM * grad_F_com + WEIGHT_F_CRB * grad_F_crb
+                current_objective = objective(F, W, A_dot)
+                step_F = armijo_initial_step_F
+
+                for ls in range(max_line_search):
+                    if step_F < armijo_min_step:
+                        break
+
+                    F_candidate = project_unit_modulus(F + step_F * grad_F)
+                    candidate_objective = objective(F_candidate, W, A_dot)
+                    directional_gain = torch.real(torch.sum(grad_F.conj() * (F_candidate - F), dim=(-2, -1)).mean())
+
+                    if candidate_objective >= current_objective + armijo_c1 * step_F * directional_gain:
+                        F = F_candidate
+                        break
+
+                    step_F *= armijo_beta_F
+
+            return F
+
+        for ii in range(n_iter_outer):
+            n_inner = min(n_iter_inner, self.step_size.shape[0])
+
+            # compute A_dot which has the minimum 1/CRLB for the given theta_desire_batch
+            A_dot = compute_A_dot(H, F, W, xi_0, theta_desire_batch, R_N_inv, Pt)
+
+            if track_metrics:
+                F = inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt)
+            else:
+                F = checkpoint(inner_f_update, F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt, use_reentrant=False)
+
+            grad_W_k_com = get_grad_W_com(H, F, W)
+            grad_W_k_crb = get_grad_W_crb(F, W, xi_0, A_dot, R_N_inv)
+            grad_W = WEIGHT_W_COM * grad_W_k_com + WEIGHT_W_CRB * grad_W_k_crb
+            current_objective = objective(F, W, A_dot)
+            step_W = armijo_initial_step_W
+
+            for ls in range(max_line_search):
+                if step_W < armijo_min_step:
+                    break
+
+                W_unnormalized = W + step_W * grad_W
+                _, W_candidate = normalize(F, W_unnormalized, H, Pt)
+                candidate_objective = objective(F, W_candidate, A_dot)
+                directional_gain = torch.real(
+                    torch.sum(grad_W.conj() * (W_candidate - W), dim=(-2, -1)).mean()
+                )
+
+                if candidate_objective >= current_objective + armijo_c1 * step_W * directional_gain:
+                    W = W_candidate
+                    break
+
+                step_W *= armijo_beta_W
+
+            if track_metrics:
+                rate_over_iters[ii, 0] = get_sum_rate(H, F, W, Pt).detach()
+                crb_over_iters[ii, 0] = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt).detach()
+
+        ## average over the batch
+        rate_over_iters = rate_over_iters.mean(dim=-1, keepdim=True) # dimension: (n_iter_outer, 1, 1)
+        crb_over_iters = crb_over_iters.mean(dim=-1, keepdim=True) 
+
+        return (rate_over_iters, crb_over_iters, F, W, A_dot)
+
 # ============================================== Proposed PGA model=============================
 
 class PGA_Unfold_JX(nn.Module):
@@ -134,7 +226,7 @@ class PGA_Unfold_JX(nn.Module):
         self.alpha = alpha
 
     # =========== Projection Gradient Ascent execution ===================
-    def execute_PGA(self, H, xi_0, A_dot, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
 
         rate_init, F, W = initialize(H, Pt, initial_normalization)
 
@@ -142,6 +234,9 @@ class PGA_Unfold_JX(nn.Module):
 
         rate_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
         crb_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
+        F_over_iters = []
+        W_over_iters = []
+        A_dot_over_iters = []
 
         def inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt):
             for jj in range(n_inner):
@@ -157,6 +252,9 @@ class PGA_Unfold_JX(nn.Module):
 
         for ii in range(n_iter_outer):
             n_inner = self.step_size.shape[0]
+
+            # compute A_dot which has the minimum 1/CRLB for the given theta_desire_batch
+            A_dot = compute_A_dot(H, F, W, xi_0, theta_desire_batch, R_N_inv, Pt)
     
             if track_metrics:
                 F = inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt)
@@ -173,12 +271,21 @@ class PGA_Unfold_JX(nn.Module):
             W_new = (W + self.step_size[0][ii][1] * grad_W_k_com * WEIGHT_W_COM + self.step_size[0][ii][1] * grad_W_k_crb * WEIGHT_W_CRB)
 
             F, W = normalize(F, W_new, H, Pt)
+            F_over_iters.append(F)
+            W_over_iters.append(W)
+            A_dot_over_iters.append(A_dot)
 
         ## average over the batch
         rate_over_iters = rate_over_iters.mean(dim=-1, keepdim=True) # dimension: (n_iter_outer, 1, 1)
-        crb_over_iters = crb_over_iters.mean(dim=-1, keepdim=True) 
+        crb_over_iters = crb_over_iters.mean(dim=-1, keepdim=True)
 
-        return (rate_over_iters, crb_over_iters, F, W)
+        if track_metrics:
+            return (rate_over_iters, crb_over_iters, F, W, A_dot)
+
+        F_over_iters = torch.stack(F_over_iters, dim=0)
+        W_over_iters = torch.stack(W_over_iters, dim=0)
+        A_dot_over_iters = torch.stack(A_dot_over_iters, dim=0)
+        return (rate_over_iters, crb_over_iters, F_over_iters, W_over_iters, A_dot_over_iters)
 
 # ============================================== Unfolded PGA with decaying inner iterations ==============================
 class PGA_Unfold_JX_decay(nn.Module):
@@ -194,13 +301,16 @@ class PGA_Unfold_JX_decay(nn.Module):
         self.alpha = alpha
 
     # =========== Projection Gradient Ascent execution ===================
-    def execute_PGA(self, H, xi_0, A_dot, R_N_inv, Pt,n_iter_outer, n_iter_inner, track_metrics=True):
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt,n_iter_outer, n_iter_inner, track_metrics=True):
 
         rate_init, F, W = initialize(H, Pt, initial_normalization)
 
         B = len(H[0])
         rate_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
         crb_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
+        F_over_iters = []
+        W_over_iters = []
+        A_dot_over_iters = []
 
         def _n_inner_from_grad(grad_F_J):
             J_max = self.step_size.shape[0]
@@ -229,6 +339,9 @@ class PGA_Unfold_JX_decay(nn.Module):
 
         for ii in range(n_iter_outer):
 
+            # compute A_dot which has the minimum 1/CRLB for the given theta_desire_batch
+            A_dot = compute_A_dot(H, F, W, xi_0, theta_desire_batch, R_N_inv, Pt)
+
             grad_F_com = get_grad_F_com(H, F, W)
             grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
 
@@ -256,12 +369,21 @@ class PGA_Unfold_JX_decay(nn.Module):
 
             # Projection / normalization
             F, W = normalize(F, W_new, H, Pt)
+            F_over_iters.append(F)
+            W_over_iters.append(W)
+            A_dot_over_iters.append(A_dot)
 
         ## average over the batch
         rate_over_iters = rate_over_iters.mean(dim=-1, keepdim=True) # dimension
         crb_over_iters = crb_over_iters.mean(dim=-1, keepdim=True) # dimension
 
-        return (rate_over_iters,crb_over_iters,F,W) 
+        if track_metrics:
+            return (rate_over_iters, crb_over_iters, F, W, A_dot)
+
+        F_over_iters = torch.stack(F_over_iters, dim=0)
+        W_over_iters = torch.stack(W_over_iters, dim=0)
+        A_dot_over_iters = torch.stack(A_dot_over_iters, dim=0)
+        return (rate_over_iters, crb_over_iters, F_over_iters, W_over_iters, A_dot_over_iters) 
 
 
 # /////////////////////////////////////////////////////////////////////////////////////////
@@ -665,18 +787,23 @@ def get_grad_W_rad(F, W, R):
     grad_W = grad_W / K
     return grad_W
 
-# ================== Compute exponentially weighted deep-supervision loss
-def get_sum_loss(F, W, H, xi_0, A_dot, R_N_inv, Pt, beta=0.97):
-
+# ================== Deep-supervision loss over outer-iteration (F, W) ==================
+def _iterate_loss(F, W, H, xi_0, A_dot, R_N_inv, Pt):
     sum_rate = get_sum_rate(H, F, W, Pt)
-    crb = get_crb_fe(H, F, W,xi_0, A_dot, R_N_inv, Pt)
+    crb = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt)
+    return -(OMEGA * sum_rate + torch.mean(crb))
 
-    mean_crb = torch.mean(crb)
 
-    loss = -(OMEGA * sum_rate + mean_crb)
-    # loss = -( sum_rate + OMEGA * mean_crb)
+def get_sum_loss(F, W, H, xi_0, A_dot, R_N_inv, Pt, beta=0.97):
+    # Stacked outer iterates: F (n_outer, K, B, Nt, Nrf), A_dot (n_outer, Nt, Nt)
+    if F.dim() == 5:
+        losses = []
+        for t in range(F.shape[0]):
+            A_t = A_dot[t] if A_dot.dim() >= 3 else A_dot
+            losses.append(_iterate_loss(F[t], W[t], H, xi_0, A_t, R_N_inv, Pt))
+        return torch.stack(losses).mean()
 
-    return loss
+    return _iterate_loss(F, W, H, xi_0, A_dot, R_N_inv, Pt)
 
 
 # ================== compute CRLB gradients =========================
