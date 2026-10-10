@@ -77,12 +77,13 @@ n_iter_inner_J20 = 20   # Number of inner iterations (J = 20)
 
 
 # ============================ TUNING PARAMETERS ===========================
+multiplication_factor = 2
 WEIGHT_F_RAD = OMEGA  # fixed
 WEIGHT_W_RAD = OMEGA / Nt * K
-WEIGHT_F_COM = OMEGA * 2 
-WEIGHT_W_COM = OMEGA * 2
-WEIGHT_F_CRB = 1 * 2
-WEIGHT_W_CRB = 1 * 2
+WEIGHT_F_COM = OMEGA * multiplication_factor 
+WEIGHT_W_COM = OMEGA * multiplication_factor
+WEIGHT_F_CRB = 1 * multiplication_factor
+WEIGHT_W_CRB = 1 * multiplication_factor
 
 # ========================= CRB PARAMETERS =========================
 # xi_0 = 10 ** (-40 / 10) ## path loss at reference distance (1 m) in linear scale
