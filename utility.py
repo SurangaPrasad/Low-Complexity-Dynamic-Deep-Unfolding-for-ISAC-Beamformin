@@ -301,10 +301,10 @@ def get_mat_G_SVD(H,fre_indx,snr_dB):
     G = torch.transpose(G, 1, 2)
     return G
 # ==================================== compute sum rate of MU-MISO system for each subcarrier ===========================
-def get_sum_rate(H, F, W, Pt):
+def get_sum_rate(H, F, W, Pt, skip_unit_modulus=False):
 
     # Normalize
-    F, W = normalize(F, W, H, Pt)
+    F, W = normalize(F, W, H, Pt, skip_unit_modulus=skip_unit_modulus)
 
     # ================= Power constraint check =================
     power_high_threshold = Pt + 1e-3
@@ -380,8 +380,8 @@ def get_beam_error(H, F, W, R, Pt):
     return sum_error
 
 # ==================================== compute CRB  fishery equation function ===========================
-def get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt):
-    F, W = normalize(F, W, H, Pt)
+def get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt, skip_unit_modulus=False):
+    F, W = normalize(F, W, H, Pt, skip_unit_modulus=skip_unit_modulus)
     
     A_dot = A_dot.unsqueeze(0).unsqueeze(0) # [1, 1, Nt, Nt]
     R_N_inv = R_N_inv.unsqueeze(0).unsqueeze(0) # [1, 1, Nr, Nr]
@@ -432,11 +432,13 @@ def get_trace(A):
 
 
 # ======== normalization to meet constant modulus and power constraint ===========================
-def normalize(F, W, H, Pt):
+def normalize(F, W, H, Pt, skip_unit_modulus=False):
     B = len(H[0])
 
     # ================= Constant modulus =================
-    F = F / (torch.abs(F) + 1e-12)
+    # F/|F| erases a sub-connected mask (F_eff = F ⊙ S) because |F ⊙ S| = S.
+    if not skip_unit_modulus:
+        F = F / (torch.abs(F) + 1e-12)
 
     # ================= Power computation =================
     power = torch.linalg.matrix_norm(F @ W, dim=(-2, -1)) ** 2  # (K, B)

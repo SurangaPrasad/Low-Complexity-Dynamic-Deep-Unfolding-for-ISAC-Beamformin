@@ -31,6 +31,9 @@ run_UPGA_J20_decay = 0       # Unfolded PGA with decaying inner iterations (J_ma
 run_PGA_Conv_J5_line_search = 1      # Unfolded PGA with line search (J = 5)
 run_PGA_Conv_J10_line_search = 0      # Unfolded PGA with line search (J = 10)
 
+run_UPGA_J5_SC = 1                   # Sub-connected UPGA (fixed-block S init, J = 5)
+run_UPGA_J10_SC = 0                  # Sub-connected UPGA (fixed-block S init, J = 10)
+
 
 # ////////////////////////////////////////////// SYSTEM PARAMS //////////////////////////////////////////////
 Nt = 64                 # Num of Tx antennas
@@ -132,6 +135,9 @@ step_size_UPGA_J5_decay = torch.full([n_iter_inner_J5, n_iter_outer, K + 1], ste
 step_size_UPGA_J10_decay = torch.full([n_iter_inner_J10, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
 step_size_UPGA_J20_decay = torch.full([n_iter_inner_J20, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
 # J_GradReuse uses the same shape as J10; gradient reuse logic is handled inside execute_PGA
+# Sub-connected UPGA: (J, I, 3) = (F, S, W) step sizes
+step_size_UPGA_J5_SC = torch.full([n_iter_inner_J5, n_iter_outer, 3], step_size_fixed, device=device, requires_grad=True)
+step_size_UPGA_J10_SC = torch.full([n_iter_inner_J10, n_iter_outer, 3], step_size_fixed, device=device, requires_grad=True)
 
 
 directory_data = "./dataset/" + system_config + "/"
@@ -168,6 +174,8 @@ model_file_name_UPGA_J_GradReuse = directory_model + 'UPGA_J_GradReuse.pth'
 model_file_name_UPGA_J10_PC_omega03 = directory_model03 + 'UPGA_J10_PC.pth'
 
 model_file_name_PGA_Conv_J10_LS = directory_model + 'PGA_Conv_J10_LS.pth'
+model_file_name_UPGA_J5_SC = directory_model + 'UPGA_J5_SC.pth'
+model_file_name_UPGA_J10_SC = directory_model + 'UPGA_J10_SC.pth'
 
 # To save result figures
 directory_result = "./sim_results/" + system_config + "/"
@@ -201,6 +209,8 @@ label_ZF = 'ZF (digital, comm. only)'
 label_SCA = 'SCA-ManOpt (converged)'
 label_PGA_Conv_J5_LS = r'Conv. PGA, $600$ inner iterations, line search'
 label_PGA_Conv_J10_LS = r'Conv. PGA, $1200$ inner iterations, line search'
+label_UPGA_J5_SC = r'Sub-connected UPGA, $600$ inner layers'
+label_UPGA_J10_SC = r'Sub-connected UPGA, $1200$ inner layers'
 
 Conv_PGA_J1 = r'Conv. PGA, $120$ inner iterations'
 Conv_PGA_J5 = r'Conv. PGA, $600$ inner iterations'
