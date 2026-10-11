@@ -369,6 +369,18 @@ if run_program == 1:
         rate_iter_UPGA_J10_SC = sum_rate_UPGA_J10_SC.squeeze().cpu().numpy()
         crb_iter_UPGA_J10_SC = crb_UPGA_J10_SC.squeeze().cpu().numpy()
 
+    if run_UPGA_J_GradReuse == 1:
+        print('Running unfolded PGA with gradient reuse (J = 5)...')
+        model_UPGA_J_GradReuse = PGA_Unfold_J_GradReuse(step_size_UPGA_J5)
+        model_UPGA_J_GradReuse.load_state_dict(torch.load(model_file_name_UPGA_J_GradReuse, map_location=device))
+        register_step_size('UPGA (J=5, GradReuse)', model_UPGA_J_GradReuse.step_size)
+
+        sum_rate_UPGA_J_GradReuse, crb_UPGA_J_GradReuse, F_UPGA_J_GradReuse, W_UPGA_J_GradReuse, _ = model_UPGA_J_GradReuse.execute_PGA(
+            H_test, xi_0, theta_desire, R_N_inv, snr, n_iter_outer, n_iter_inner_J5
+        )
+        rate_iter_UPGA_J_GradReuse = sum_rate_UPGA_J_GradReuse.squeeze().cpu().numpy()
+        crb_iter_UPGA_J_GradReuse = crb_UPGA_J_GradReuse.squeeze().cpu().numpy()
+
 if plot_figure == 1:
 
     ## an array of outer iteration indices for plotting
@@ -553,6 +565,9 @@ if plot_figure == 1:
     if run_UPGA_J10_SC == 1:
         obj_iter_UPGA_J10_SC = OMEGA * rate_iter_UPGA_J10_SC + crb_iter_UPGA_J10_SC
         plt.plot(iter_outer_x, obj_iter_UPGA_J10_SC, '-*', markevery=5, color='purple', linewidth=3, markersize=7, label=label_UPGA_J10_SC)
+    if run_UPGA_J_GradReuse == 1:
+        obj_iter_UPGA_J_GradReuse = OMEGA * rate_iter_UPGA_J_GradReuse + crb_iter_UPGA_J_GradReuse
+        plt.plot(iter_outer_x, obj_iter_UPGA_J_GradReuse, '-^', markevery=5, color='olive', linewidth=3, markersize=7, label=label_UPGA_J_GradReuse)
 
     plt.xlabel(r'Number of iterations/layers $(I)$', fontsize=14)
     plt.ylabel(r'$\omega R + \log(\text{CRLB}^{-1})$', fontsize=14)

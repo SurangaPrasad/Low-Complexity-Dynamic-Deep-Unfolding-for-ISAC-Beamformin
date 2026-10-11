@@ -35,6 +35,7 @@ run_PGA_Conv_J10_LS_SC = 0           # Sub-connected conv. PGA with line search 
 
 run_UPGA_J5_SC = 1                   # Sub-connected UPGA (fixed-block S init, J = 5)
 run_UPGA_J10_SC = 0                  # Sub-connected UPGA (fixed-block S init, J = 10)
+run_UPGA_J_GradReuse = 1             # Unfolded PGA with lazy gradient reuse (J = 5)
 
 
 # ////////////////////////////////////////////// SYSTEM PARAMS //////////////////////////////////////////////
@@ -208,7 +209,7 @@ label_conv_PGA_J10_PC = 'Conventional PGA ' + '$(J = ' + str(n_iter_inner_J10) +
 label_UPGA_J5_decay = r'Dynamic-UPGA, $421$ inner layers'
 label_UPGA_J10_decay = r'Dynamic-UPGA, $722$ inner layers'
 label_UPGA_J20_decay = r'Dynamic-UPGA, $20$ inner layers'
-label_UPGA_J_GradReuse = r'UPGA ' + r'$(J=' + str(n_iter_inner_J10) + r', \mathrm{GradReuse})$'
+label_UPGA_J_GradReuse = r'GradReuse-UPGA, $600$ inner layers'
 label_ZF = 'ZF (digital, comm. only)'
 label_SCA = 'SCA-ManOpt (converged)'
 label_PGA_Conv_J5_LS = r'Conv. PGA, $600$ inner iterations, line search'
