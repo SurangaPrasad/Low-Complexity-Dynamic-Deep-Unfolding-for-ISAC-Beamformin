@@ -30,6 +30,8 @@ run_UPGA_J20_decay = 0       # Unfolded PGA with decaying inner iterations (J_ma
 
 run_PGA_Conv_J5_line_search = 1      # Unfolded PGA with line search (J = 5)
 run_PGA_Conv_J10_line_search = 0      # Unfolded PGA with line search (J = 10)
+run_PGA_Conv_J5_LS_SC = 1            # Sub-connected conv. PGA with line search (J = 5)
+run_PGA_Conv_J10_LS_SC = 0           # Sub-connected conv. PGA with line search (J = 10)
 
 run_UPGA_J5_SC = 1                   # Sub-connected UPGA (fixed-block S init, J = 5)
 run_UPGA_J10_SC = 0                  # Sub-connected UPGA (fixed-block S init, J = 10)
@@ -116,6 +118,8 @@ armijo_beta_F = 0.2
 armijo_beta_W = 0.2
 armijo_initial_step_F = 0.1
 armijo_initial_step_W = 0.1
+armijo_initial_step_S = 0.1
+armijo_beta_S = 0.2
 armijo_min_step = 1e-8
 max_line_search = 10
 
@@ -209,6 +213,8 @@ label_ZF = 'ZF (digital, comm. only)'
 label_SCA = 'SCA-ManOpt (converged)'
 label_PGA_Conv_J5_LS = r'Conv. PGA, $600$ inner iterations, line search'
 label_PGA_Conv_J10_LS = r'Conv. PGA, $1200$ inner iterations, line search'
+label_PGA_Conv_J5_LS_SC = r'Sub-connected conv. PGA, $600$ inner iters, line search'
+label_PGA_Conv_J10_LS_SC = r'Sub-connected conv. PGA, $1200$ inner iters, line search'
 label_UPGA_J5_SC = r'Sub-connected UPGA, $600$ inner layers'
 label_UPGA_J10_SC = r'Sub-connected UPGA, $1200$ inner layers'
 

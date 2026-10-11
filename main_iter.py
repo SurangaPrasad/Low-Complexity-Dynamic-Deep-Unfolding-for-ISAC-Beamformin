@@ -111,6 +111,8 @@ def sync_run_flags_with_plot_data(namespace):
         'run_UPGA_J_GradReuse': ('rate_iter_UPGA_J_GradReuse', 'crb_iter_UPGA_J_GradReuse'),
         'run_UPGA_J5_SC': ('rate_iter_UPGA_J5_SC', 'crb_iter_UPGA_J5_SC'),
         'run_UPGA_J10_SC': ('rate_iter_UPGA_J10_SC', 'crb_iter_UPGA_J10_SC'),
+        'run_PGA_Conv_J5_LS_SC': ('rate_iter_PGA_Conv_J5_LS_SC', 'crb_iter_PGA_Conv_J5_LS_SC'),
+        'run_PGA_Conv_J10_LS_SC': ('rate_iter_PGA_Conv_J10_LS_SC', 'crb_iter_PGA_Conv_J10_LS_SC'),
     }
     for flag_name, required_names in flag_requirements.items():
         if namespace.get(flag_name) != 1:
@@ -321,6 +323,28 @@ if run_program == 1:
         rate_iter_PGA_Conv_J10_LS  = sum_rate_PGA_Conv_J10_LS.squeeze().cpu().numpy()
         crb_iter_PGA_Conv_J10_LS   = crb_PGA_Conv_J10_LS.squeeze().cpu().numpy()
 
+    if run_PGA_Conv_J5_LS_SC == 1:
+        print('Running sub-connected conv. PGA with line search (J = 5)...')
+        model_PGA_Conv_J5_LS_SC = PGA_Conv_line_search_sub_connected(step_size_UPGA_J5)
+        register_step_size('Conv PGA (J=5, LS, sub-connected)', model_PGA_Conv_J5_LS_SC.step_size)
+
+        sum_rate_PGA_Conv_J5_LS_SC, crb_PGA_Conv_J5_LS_SC, F_PGA_Conv_J5_LS_SC, W_PGA_Conv_J5_LS_SC, _ = model_PGA_Conv_J5_LS_SC.execute_PGA(
+            H_test, xi_0, theta_desire, R_N_inv, snr, n_iter_outer, n_iter_inner_J5
+        )
+        rate_iter_PGA_Conv_J5_LS_SC = sum_rate_PGA_Conv_J5_LS_SC.squeeze().cpu().numpy()
+        crb_iter_PGA_Conv_J5_LS_SC = crb_PGA_Conv_J5_LS_SC.squeeze().cpu().numpy()
+
+    if run_PGA_Conv_J10_LS_SC == 1:
+        print('Running sub-connected conv. PGA with line search (J = 10)...')
+        model_PGA_Conv_J10_LS_SC = PGA_Conv_line_search_sub_connected(step_size_UPGA_J10)
+        register_step_size('Conv PGA (J=10, LS, sub-connected)', model_PGA_Conv_J10_LS_SC.step_size)
+
+        sum_rate_PGA_Conv_J10_LS_SC, crb_PGA_Conv_J10_LS_SC, F_PGA_Conv_J10_LS_SC, W_PGA_Conv_J10_LS_SC, _ = model_PGA_Conv_J10_LS_SC.execute_PGA(
+            H_test, xi_0, theta_desire, R_N_inv, snr, n_iter_outer, n_iter_inner_J10
+        )
+        rate_iter_PGA_Conv_J10_LS_SC = sum_rate_PGA_Conv_J10_LS_SC.squeeze().cpu().numpy()
+        crb_iter_PGA_Conv_J10_LS_SC = crb_PGA_Conv_J10_LS_SC.squeeze().cpu().numpy()
+
     if run_UPGA_J5_SC == 1:
         print('Running sub-connected unfolded PGA with J = 5...')
         model_UPGA_J5_SC = PGA_Unfold_Sub_Connected_JX(step_size_UPGA_J5_SC)
@@ -517,6 +541,12 @@ if plot_figure == 1:
     if run_PGA_Conv_J10_line_search == 1:
         obj_iter_PGA_Conv_J10_LS = OMEGA * rate_iter_PGA_Conv_J10_LS + crb_iter_PGA_Conv_J10_LS
         plt.plot(iter_outer_x, obj_iter_PGA_Conv_J10_LS, '-*', markevery=5, color='teal', linewidth=3, markersize=7, label=label_PGA_Conv_J10_LS)
+    if run_PGA_Conv_J5_LS_SC == 1:
+        obj_iter_PGA_Conv_J5_LS_SC = OMEGA * rate_iter_PGA_Conv_J5_LS_SC + crb_iter_PGA_Conv_J5_LS_SC
+        plt.plot(iter_outer_x, obj_iter_PGA_Conv_J5_LS_SC, '-^', markevery=5, color='brown', linewidth=3, markersize=7, label=label_PGA_Conv_J5_LS_SC)
+    if run_PGA_Conv_J10_LS_SC == 1:
+        obj_iter_PGA_Conv_J10_LS_SC = OMEGA * rate_iter_PGA_Conv_J10_LS_SC + crb_iter_PGA_Conv_J10_LS_SC
+        plt.plot(iter_outer_x, obj_iter_PGA_Conv_J10_LS_SC, '-v', markevery=5, color='brown', linewidth=3, markersize=7, label=label_PGA_Conv_J10_LS_SC)
     if run_UPGA_J5_SC == 1:
         obj_iter_UPGA_J5_SC = OMEGA * rate_iter_UPGA_J5_SC + crb_iter_UPGA_J5_SC
         plt.plot(iter_outer_x, obj_iter_UPGA_J5_SC, '-s', markevery=5, color='purple', linewidth=3, markersize=7, label=label_UPGA_J5_SC)

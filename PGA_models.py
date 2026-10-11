@@ -213,6 +213,137 @@ class PGA_Conv_line_search(nn.Module):
 
         return (rate_over_iters, crb_over_iters, F, W, A_dot)
 
+# ============================================== Conventional PGA with line search + sub-connected mask ==============================
+
+class PGA_Conv_line_search_sub_connected(nn.Module):
+    """Armijo line-search PGA with a learnable sub-connected mask.
+
+    Same F/W Armijo updates as ``PGA_Conv_line_search``. ``S`` starts as the
+    fixed block mask and is refined by a simplex-projected line search:
+
+        F_eff = F ⊙ S
+        grad_F = S ⊙ grad_F_eff
+        grad_S = 2 Re(conj(F) ⊙ grad_F_eff)
+    """
+
+    def __init__(self, step_size, n_antennas=None, n_rf_chains=None, mask=None):
+        super().__init__()
+        self.step_size = nn.Parameter(step_size)
+        n_ant = Nt if n_antennas is None else n_antennas
+        n_rf = Nrf if n_rf_chains is None else n_rf_chains
+        s0 = mask.float() if mask is not None else build_fixed_subconnected_mask(n_ant, n_rf)
+        self.register_buffer('fixed_s0', s0)
+
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
+
+        _, F, W = initialize(H, Pt, initial_normalization)
+        B = len(H[0])
+        S = self.fixed_s0.to(device=F.device, dtype=F.real.dtype)
+        S = S.view(*([1] * (F.dim() - 2)), S.shape[-2], S.shape[-1]).expand_as(F.real).clone()
+
+        rate_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
+        crb_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
+
+        def objective(F_eval, S_eval, W_eval, A_dot):
+            F_eff = F_eval * S_eval
+            rate = get_sum_rate(H, F_eff, W_eval, Pt, skip_unit_modulus=True)
+            log_inv_crb = get_crb_fe(H, F_eff, W_eval, xi_0, A_dot, R_N_inv, Pt, skip_unit_modulus=True).mean()
+            return WEIGHT_F_COM * rate + WEIGHT_F_CRB * log_inv_crb
+
+        def inner_fs_update(F, S, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt):
+            for jj in range(n_inner):
+                F_eff = F * S
+                grad_F_com = get_grad_F_com(H, F_eff, W)
+                grad_F_crb = get_grad_F_crb(F_eff, W, xi_0, A_dot, R_N_inv)
+                grad_F_eff = WEIGHT_F_COM * grad_F_com + WEIGHT_F_CRB * grad_F_crb
+                grad_F = S * grad_F_eff
+                current_objective = objective(F, S, W, A_dot)
+                step_F = armijo_initial_step_F
+
+                for ls in range(max_line_search):
+                    if step_F < armijo_min_step:
+                        break
+
+                    F_candidate = project_unit_modulus(F + step_F * grad_F)
+                    candidate_objective = objective(F_candidate, S, W, A_dot)
+                    directional_gain = torch.real(
+                        torch.sum(grad_F.conj() * (F_candidate - F), dim=(-2, -1)).mean()
+                    )
+
+                    if candidate_objective >= current_objective + armijo_c1 * step_F * directional_gain:
+                        F = F_candidate
+                        break
+
+                    step_F *= armijo_beta_F
+
+                F_eff = F * S
+                grad_F_com = get_grad_F_com(H, F_eff, W)
+                grad_F_crb = get_grad_F_crb(F_eff, W, xi_0, A_dot, R_N_inv)
+                grad_F_eff = WEIGHT_F_COM * grad_F_com + WEIGHT_F_CRB * grad_F_crb
+                grad_S = 2.0 * torch.real(torch.conj(F) * grad_F_eff)
+                current_objective = objective(F, S, W, A_dot)
+                step_S = armijo_initial_step_S
+
+                for ls in range(max_line_search):
+                    if step_S < armijo_min_step:
+                        break
+
+                    S_candidate = project_to_simplex_rows(S + step_S * grad_S)
+                    candidate_objective = objective(F, S_candidate, W, A_dot)
+                    directional_gain = torch.sum(grad_S * (S_candidate - S), dim=(-2, -1)).mean()
+
+                    if candidate_objective >= current_objective + armijo_c1 * step_S * directional_gain:
+                        S = S_candidate
+                        break
+
+                    step_S *= armijo_beta_S
+
+            return F, S
+
+        for ii in range(n_iter_outer):
+            n_inner = min(n_iter_inner, self.step_size.shape[0])
+
+            A_dot = compute_A_dot(H, F * S, W, xi_0, theta_desire_batch, R_N_inv, Pt)
+
+            if track_metrics:
+                F, S = inner_fs_update(F, S, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt)
+            else:
+                F, S = checkpoint(inner_fs_update, F, S, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt, use_reentrant=False)
+
+            F_eff = F * S
+            grad_W_k_com = get_grad_W_com(H, F_eff, W)
+            grad_W_k_crb = get_grad_W_crb(F_eff, W, xi_0, A_dot, R_N_inv)
+            grad_W = WEIGHT_W_COM * grad_W_k_com + WEIGHT_W_CRB * grad_W_k_crb
+            current_objective = objective(F, S, W, A_dot)
+            step_W = armijo_initial_step_W
+
+            for ls in range(max_line_search):
+                if step_W < armijo_min_step:
+                    break
+
+                W_unnormalized = W + step_W * grad_W
+                _, W_candidate = normalize(F_eff, W_unnormalized, H, Pt, skip_unit_modulus=True)
+                candidate_objective = objective(F, S, W_candidate, A_dot)
+                directional_gain = torch.real(
+                    torch.sum(grad_W.conj() * (W_candidate - W), dim=(-2, -1)).mean()
+                )
+
+                if candidate_objective >= current_objective + armijo_c1 * step_W * directional_gain:
+                    W = W_candidate
+                    break
+
+                step_W *= armijo_beta_W
+
+            if track_metrics:
+                F_eff = F * S
+                rate_over_iters[ii, 0] = get_sum_rate(H, F_eff, W, Pt, skip_unit_modulus=True).detach()
+                crb_over_iters[ii, 0] = get_crb_fe(H, F_eff, W, xi_0, A_dot, R_N_inv, Pt, skip_unit_modulus=True).detach()
+
+        rate_over_iters = rate_over_iters.mean(dim=-1, keepdim=True)
+        crb_over_iters = crb_over_iters.mean(dim=-1, keepdim=True)
+
+        return (rate_over_iters, crb_over_iters, F * S, W, A_dot)
+
 # ============================================== Proposed PGA model=============================
 
 class PGA_Unfold_JX(nn.Module):
@@ -287,36 +418,6 @@ class PGA_Unfold_JX(nn.Module):
         A_dot_over_iters = torch.stack(A_dot_over_iters, dim=0)
         return (rate_over_iters, crb_over_iters, F_over_iters, W_over_iters, A_dot_over_iters)
 
-
-def build_fixed_subconnected_mask(n_antennas, n_rf_chains, device=None, dtype=None):
-    """Fixed block sub-connected mask (Nt, Nrf).
-
-    Every RF chain serves a contiguous block of ``n_antennas // n_rf_chains``
-    antennas, so each row has exactly one 1. This is the ``s_init='fixed'``
-    mask from JointUPGANet.
-    """
-    if n_antennas % n_rf_chains != 0:
-        raise ValueError(
-            f"n_antennas ({n_antennas}) must be divisible by n_rf_chains ({n_rf_chains})"
-        )
-    mask = torch.zeros(n_antennas, n_rf_chains, device=device, dtype=dtype)
-    antennas_per_rf = n_antennas // n_rf_chains
-    for r in range(n_rf_chains):
-        mask[r * antennas_per_rf:(r + 1) * antennas_per_rf, r] = 1.0
-    return mask
-
-
-def project_to_simplex_rows(X):
-    """Project each row of ``X`` onto the probability simplex (Duchi et al.)."""
-    d = X.shape[-1]
-    u, _ = torch.sort(X, dim=-1, descending=True)
-    cumsum = torch.cumsum(u, dim=-1)
-    j_idx = torch.arange(1, d + 1, device=X.device, dtype=X.dtype)
-    water_levels = (cumsum - 1.0) / j_idx
-    rho = torch.clamp((u > water_levels).long().sum(dim=-1), min=1)
-    c_rho = torch.gather(cumsum, dim=-1, index=(rho - 1).unsqueeze(-1)).squeeze(-1)
-    theta = ((c_rho - 1.0) / rho.to(dtype=X.dtype)).unsqueeze(-1)
-    return torch.clamp(X - theta, min=0.0)
 
 
 class PGA_Unfold_Sub_Connected_JX(nn.Module):
@@ -980,3 +1081,38 @@ def get_grad_W_crb(F, W, xi_0, A_dot, R_N_inv):
     denominator = batch_trace.view(1, -1, 1, 1)
     grad_W_crb = numerator / denominator
     return grad_W_crb
+
+
+# ================== Sub-connected mask =========================
+
+
+def build_fixed_subconnected_mask(n_antennas, n_rf_chains, device=None, dtype=None):
+    """Fixed block sub-connected mask (Nt, Nrf).
+
+    Every RF chain serves a contiguous block of ``n_antennas // n_rf_chains``
+    antennas, so each row has exactly one 1. This is the ``s_init='fixed'``
+    mask from JointUPGANet.
+    """
+    if n_antennas % n_rf_chains != 0:
+        raise ValueError(
+            f"n_antennas ({n_antennas}) must be divisible by n_rf_chains ({n_rf_chains})"
+        )
+    mask = torch.zeros(n_antennas, n_rf_chains, device=device, dtype=dtype)
+    antennas_per_rf = n_antennas // n_rf_chains
+    for r in range(n_rf_chains):
+        mask[r * antennas_per_rf:(r + 1) * antennas_per_rf, r] = 1.0
+    return mask
+
+
+def project_to_simplex_rows(X):
+    """Project each row of ``X`` onto the probability simplex (Duchi et al.)."""
+    d = X.shape[-1]
+    u, _ = torch.sort(X, dim=-1, descending=True)
+    cumsum = torch.cumsum(u, dim=-1)
+    j_idx = torch.arange(1, d + 1, device=X.device, dtype=X.dtype)
+    water_levels = (cumsum - 1.0) / j_idx
+    rho = torch.clamp((u > water_levels).long().sum(dim=-1), min=1)
+    c_rho = torch.gather(cumsum, dim=-1, index=(rho - 1).unsqueeze(-1)).squeeze(-1)
+    theta = ((c_rho - 1.0) / rho.to(dtype=X.dtype)).unsqueeze(-1)
+    return torch.clamp(X - theta, min=0.0)
+
