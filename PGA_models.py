@@ -872,16 +872,27 @@ class PGA_Unfold_J_GradReuse_SC(nn.Module):
 
 # ============================================== Unfolded PGA with decaying inner iterations ==============================
 class PGA_Unfold_JX_decay(nn.Module):
+    """Unfolded PGA with an inexact F-block residual test for adaptive J.
 
-    def __init__(self, step_size, alpha=0.04, eps=1e-12, J_min=2):
+    Inner PGA on F stops when the combined Euclidean residual has dropped by
+    a factor ``eta`` relative to the start of the outer iteration:
+
+        ||∇_F J(F_{i,j}, W_i)||  ≤  η  ||∇_F J(F_i, W_i)||
+
+    clipped to ``[J_min, J_max]``. ``η`` is dimensionless; there is no
+    scale-dependent ``alpha`` map. The residual uses the same ``grad_F_J``
+    that is about to be applied, so the test costs no extra gradient eval.
+    """
+
+    def __init__(self, step_size, alpha=0.04, eps=1e-12, J_min=2, eta=0.2):
         super().__init__()
 
         self.step_size = nn.Parameter(step_size)  # parameters = (mu, lambda)
         self.eps = eps
-        self.J_min = J_min  # minimum inner iterations to ensure some optimization progress
-
-        # Adaptive scheduling hyperparameter
-        self.alpha = alpha
+        self.J_min = J_min
+        self.eta = eta
+        self.alpha = alpha  # unused; kept so existing call sites stay valid
+        self.inner_iter_history = []
 
     # =========== Projection Gradient Ascent execution ===================
     def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt,n_iter_outer, n_iter_inner, track_metrics=True):
@@ -894,30 +905,33 @@ class PGA_Unfold_JX_decay(nn.Module):
         F_over_iters = []
         W_over_iters = []
         A_dot_over_iters = []
+        self.inner_iter_history = []
+        n_used_holder = [0]
 
-        def _n_inner_from_grad(grad_F_J):
+        def inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, Pt):
             J_max = self.step_size.shape[0]
             J_min = min(self.J_min, J_max)
-            Nt = F.shape[-2]
-            Nrf = F.shape[-1]
-            g_i = torch.linalg.norm(grad_F_J.reshape(grad_F_J.shape[0], -1), dim=1) / (torch.sqrt(torch.tensor(Nt * Nrf, device=grad_F_J.device, dtype=grad_F_J.real.dtype)) + self.eps)
-            g_i = torch.mean(g_i)
-            r_i = g_i / (g_i + self.alpha)
-            n_inner = int(torch.ceil(J_max * r_i).item())
-            n_inner = max(J_min, min(J_max, n_inner))
-            return n_inner
+            g0 = None
+            n_used = 0
 
-        def inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt):
-
-            for jj in range(n_inner):
+            for jj in range(J_max):
                 grad_F_com = get_grad_F_com(H, F, W)
                 grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
                 if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
                     print('Error NaN gradients!!!!!!!!!!!!!!!')
-                delta_F_com = self.step_size[jj][ii][0] * grad_F_com
-                delta_F_crb = self.step_size[jj][ii][0] * grad_F_crb
-                F = (F+ delta_F_com * WEIGHT_F_COM+ delta_F_crb * WEIGHT_F_CRB)
+                grad_F_J = WEIGHT_F_COM * grad_F_com + WEIGHT_F_CRB * grad_F_crb
+                g = torch.linalg.matrix_norm(grad_F_J, ord='fro').mean()
+
+                if jj == 0:
+                    g0 = g.detach()
+                elif jj >= J_min and (g <= self.eta * g0).item():
+                    break
+
+                F = F + self.step_size[jj][ii][0] * grad_F_J
                 F = normalize_power(F, W, H, Pt)
+                n_used = jj + 1
+
+            n_used_holder[0] = n_used
             return F
 
         for ii in range(n_iter_outer):
@@ -925,22 +939,15 @@ class PGA_Unfold_JX_decay(nn.Module):
             # compute A_dot which has the minimum 1/CRLB for the given theta_desire_batch
             A_dot = compute_A_dot(H, F, W, xi_0, theta_desire_batch, R_N_inv, Pt)
 
-            grad_F_com = get_grad_F_com(H, F, W)
-            grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
-
-            if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
-                print('Error NaN gradients before adaptive J!!!!!!!!!!!!!!!')
-
-            grad_F_J = WEIGHT_F_COM * grad_F_com + WEIGHT_F_CRB * grad_F_crb
-            n_inner = _n_inner_from_grad(grad_F_J)
-
             if track_metrics:
-                F = inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt)
+                F = inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, Pt)
                 rate_over_iters[ii, 0] = get_sum_rate(H, F, W, Pt).detach()
                 crb_over_iters[ii, 0] = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt).detach()
 
             else:
-                F = checkpoint(inner_f_update,F,W,H,xi_0,A_dot,R_N_inv,n_inner,Pt,use_reentrant=False)
+                F = checkpoint(inner_f_update, F, W, H, xi_0, A_dot, R_N_inv, Pt, use_reentrant=False)
+
+            self.inner_iter_history.append(n_used_holder[0])
 
             # Projection of analog precoder
             F = project_unit_modulus(F)
