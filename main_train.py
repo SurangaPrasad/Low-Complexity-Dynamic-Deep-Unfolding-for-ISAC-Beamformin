@@ -185,6 +185,46 @@ def run_UPGA_gradreuse(step_size_UPGA):
     torch.save(model_UPGA_GR.state_dict(), model_file_name_UPGA_J_GradReuse)
 
 
+def run_UPGA_J_GradReuse_SC(step_size_UPGA):
+    model_UPGA_GR_SC = PGA_Unfold_J_GradReuse_SC(step_size_UPGA)
+    optimizer = torch.optim.Adam(model_UPGA_GR_SC.parameters(), lr=learning_rate)
+    epoch_losses = []
+
+    for i_epoch in range(n_epoch):
+        batch_losses = []
+        H_shuffled = torch.transpose(H_train, 0, 1)[np.random.permutation(len(H_train[0]))]
+
+        for i_batch in range(0, len(H_train[0]), batch_size):
+            H = torch.transpose(H_shuffled[i_batch:i_batch + batch_size], 0, 1)
+            cur_bs = H.shape[1]
+            snr_dB_train = np.random.permutation(np.tile(snr_dB_list, batch_size // len(snr_dB_list)))[:cur_bs]
+            snr_train = torch.tensor(10 ** (snr_dB_train / 10), dtype=torch.float32, device=device)
+
+            theta_desire_batch = np.random.choice(theta_desire_list, size=n_target, replace=False)
+
+            __, __, F_over_iters, W_over_iters, A_dot_over_iters = model_UPGA_GR_SC.execute_PGA(
+                H, xi_0, theta_desire_batch, R_N_inv, snr_train, n_iter_outer, step_size_UPGA.shape[0], track_metrics=False
+            )
+
+            loss = get_sum_loss(
+                F_over_iters, W_over_iters, H, xi_0, A_dot_over_iters, R_N_inv, snr_train, skip_unit_modulus=True
+            )
+            print(f"Batch [{i_batch//batch_size+1}/{len(H_train[0])//batch_size}], Loss: {loss.item():.4f}")
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            batch_losses.append(loss.item())
+
+        avg_loss = sum(batch_losses) / len(batch_losses)
+        epoch_losses.append(avg_loss)
+        print(f"Epoch [{i_epoch+1}/{n_epoch}], Average Loss: {avg_loss:.4f}")
+        print(f"  [GradReuse-SC fallback recomputations this epoch: "
+              f"F/S={model_UPGA_GR_SC.grad_recalc_count}, W={model_UPGA_GR_SC.W_grad_recalc_count}]")
+
+    torch.save(model_UPGA_GR_SC.state_dict(), model_file_name_UPGA_J_GradReuse_SC)
+
+
 # ====================================================== Conventional PGA ====================================
 if run_conv_PGA == 1:
     # Object defining
@@ -236,3 +276,6 @@ if run_UPGA_J10_SC == 1:
 
 if run_UPGA_J_GradReuse == 1:
     run_UPGA_gradreuse(step_size_UPGA_J5)
+
+if run_UPGA_J_GradReuse_SC == 1:
+    run_UPGA_J_GradReuse_SC(step_size_UPGA_J_GradReuse_SC)

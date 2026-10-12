@@ -36,6 +36,7 @@ run_PGA_Conv_J10_LS_SC = 0           # Sub-connected conv. PGA with line search 
 run_UPGA_J5_SC = 0                   # Sub-connected UPGA (fixed-block S init, J = 5)
 run_UPGA_J10_SC = 0                  # Sub-connected UPGA (fixed-block S init, J = 10)
 run_UPGA_J_GradReuse = 1             # Unfolded PGA with lazy gradient reuse (J = 5)
+run_UPGA_J_GradReuse_SC = 1          # Sub-connected UPGA with lazy gradient reuse (J = 5)
 
 
 # ////////////////////////////////////////////// SYSTEM PARAMS //////////////////////////////////////////////
@@ -143,6 +144,7 @@ step_size_UPGA_J20_decay = torch.full([n_iter_inner_J20, n_iter_outer, K + 1], s
 # Sub-connected UPGA: (J, I, 3) = (F, S, W) step sizes
 step_size_UPGA_J5_SC = torch.full([n_iter_inner_J5, n_iter_outer, 3], step_size_fixed, device=device, requires_grad=True)
 step_size_UPGA_J10_SC = torch.full([n_iter_inner_J10, n_iter_outer, 3], step_size_fixed, device=device, requires_grad=True)
+step_size_UPGA_J_GradReuse_SC = torch.full([n_iter_inner_J5, n_iter_outer, 3], step_size_fixed, device=device, requires_grad=True)
 
 
 directory_data = "./dataset/" + system_config + "/"
@@ -181,6 +183,7 @@ model_file_name_UPGA_J10_PC_omega03 = directory_model03 + 'UPGA_J10_PC.pth'
 model_file_name_PGA_Conv_J10_LS = directory_model + 'PGA_Conv_J10_LS.pth'
 model_file_name_UPGA_J5_SC = directory_model + 'UPGA_J5_SC.pth'
 model_file_name_UPGA_J10_SC = directory_model + 'UPGA_J10_SC.pth'
+model_file_name_UPGA_J_GradReuse_SC = directory_model + 'UPGA_J_GradReuse_SC.pth'
 
 # To save result figures
 directory_result = "./sim_results/" + system_config + "/"
@@ -218,6 +221,7 @@ label_PGA_Conv_J5_LS_SC = r'Sub-connected conv. PGA, $600$ inner iters, line sea
 label_PGA_Conv_J10_LS_SC = r'Sub-connected conv. PGA, $1200$ inner iters, line search'
 label_UPGA_J5_SC = r'Sub-connected UPGA, $600$ inner layers'
 label_UPGA_J10_SC = r'Sub-connected UPGA, $1200$ inner layers'
+label_UPGA_J_GradReuse_SC = r'Sub-connected GradReuse-UPGA, $600$ inner layers'
 
 Conv_PGA_J1 = r'Conv. PGA, $120$ inner iterations'
 Conv_PGA_J5 = r'Conv. PGA, $600$ inner iterations'

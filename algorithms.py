@@ -96,3 +96,11 @@ def execute_UPGA_J_GradReuse(model_UPGA_J_GradReuse, H_test, Pt):
     rate_avr = [r.detach().cpu().numpy() for r in (sum(rates) / len(H_test[0]))][-1]
     crb_avr = [r.detach().item() for r in (sum(crbs) / len(H_test[0]))][-1]
     return rate_avr, crb_avr
+
+def execute_UPGA_J_GradReuse_SC(model_UPGA_J_GradReuse_SC, H_test, Pt):
+    rates, crbs, _, F, W = model_UPGA_J_GradReuse_SC.execute_PGA(
+        H_test, xi_0, theta_desire, R_N_inv, Pt, n_iter_outer, n_iter_inner_J5
+    )
+    rate_avr = [r.detach().cpu().numpy() for r in (sum(rates) / len(H_test[0]))][-1]
+    crb_avr = [r.detach().item() for r in (sum(crbs) / len(H_test[0]))][-1]
+    return rate_avr, crb_avr
