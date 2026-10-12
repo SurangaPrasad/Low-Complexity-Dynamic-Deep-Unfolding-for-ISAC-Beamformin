@@ -185,7 +185,7 @@ def run_UPGA_gradreuse(step_size_UPGA):
     torch.save(model_UPGA_GR.state_dict(), model_file_name_UPGA_J_GradReuse)
 
 
-def run_UPGA_J_GradReuse_SC(step_size_UPGA):
+def run_UPGA_gradreuse_sc(step_size_UPGA):
     model_UPGA_GR_SC = PGA_Unfold_J_GradReuse_SC(step_size_UPGA)
     optimizer = torch.optim.Adam(model_UPGA_GR_SC.parameters(), lr=learning_rate)
     epoch_losses = []
@@ -278,4 +278,4 @@ if run_UPGA_J_GradReuse == 1:
     run_UPGA_gradreuse(step_size_UPGA_J5)
 
 if run_UPGA_J_GradReuse_SC == 1:
-    run_UPGA_J_GradReuse_SC(step_size_UPGA_J_GradReuse_SC)
+    run_UPGA_gradreuse_sc(step_size_UPGA_J_GradReuse_SC)
