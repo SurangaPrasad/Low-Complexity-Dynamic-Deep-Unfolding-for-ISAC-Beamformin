@@ -18,7 +18,7 @@ run_conv_PGA_J20 = 0
 run_conv_PGA_J10_PC = 0    # Conventional PGA with J = 10 and partial coupling (PC) 
 run_UPGA_J1 = 0            # Unfolded PGA without any modification (J = 1)
 run_UPGA_J4 = 0
-run_UPGA_J5 = 1            # Unfolded PGA with setting J = 5
+run_UPGA_J5 = 0            # Unfolded PGA with setting J = 5
 run_UPGA_J6 = 0            # Unfolded PGA with setting J = 6 (for ablation on inner iteration number)
 run_UPGA_J10 = 0           # Unfolded PGA with setting J = 10
 run_UPGA_J20 = 0           # Unfolded PGA with setting J = 20
@@ -30,10 +30,10 @@ run_UPGA_J20_decay = 0       # Unfolded PGA with decaying inner iterations (J_ma
 
 run_PGA_Conv_J5_line_search = 1      # Unfolded PGA with line search (J = 5)
 run_PGA_Conv_J10_line_search = 0      # Unfolded PGA with line search (J = 10)
-run_PGA_Conv_J5_LS_SC = 1            # Sub-connected conv. PGA with line search (J = 5)
+run_PGA_Conv_J5_LS_SC = 0            # Sub-connected conv. PGA with line search (J = 5)
 run_PGA_Conv_J10_LS_SC = 0           # Sub-connected conv. PGA with line search (J = 10)
 
-run_UPGA_J5_SC = 1                   # Sub-connected UPGA (fixed-block S init, J = 5)
+run_UPGA_J5_SC = 0                   # Sub-connected UPGA (fixed-block S init, J = 5)
 run_UPGA_J10_SC = 0                  # Sub-connected UPGA (fixed-block S init, J = 10)
 run_UPGA_J_GradReuse = 1             # Unfolded PGA with lazy gradient reuse (J = 5)
 
