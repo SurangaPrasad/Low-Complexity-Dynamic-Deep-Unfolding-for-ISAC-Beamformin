@@ -278,8 +278,11 @@ if run_program == 1:
                                                                                             n_iter_inner_J5)
         rate_iter_UPGA_J5_decay  = sum_rate_UPGA_J5_decay.squeeze().cpu().numpy()
         crb_iter_UPGA_J5_decay   = crb_UPGA_J5_decay.squeeze().cpu().numpy()
-    
-    
+        inner_iter_history_UPGA_J5_decay = list(model_UPGA_J5_decay.inner_iter_history)
+        label_UPGA_J5_decay = make_dynamic_upga_label(total_inner_layers(inner_iter_history_UPGA_J5_decay))
+        print(f'  Dynamic-UPGA (J_max=5) total inner layers: {total_inner_layers(inner_iter_history_UPGA_J5_decay)}')
+        print(f'  label: {label_UPGA_J5_decay}')
+
     if run_UPGA_J10_decay == 1:
         print('Running unfolded PGA with decaying J...')
         model_UPGA_J10_decay = PGA_Unfold_JX_decay(step_size_UPGA_J10_decay)
@@ -292,7 +295,11 @@ if run_program == 1:
                                                                                             n_iter_inner_J10)
         rate_iter_UPGA_J10_decay  = sum_rate_UPGA_J10_decay.squeeze().cpu().numpy()
         crb_iter_UPGA_J10_decay   = crb_UPGA_J10_decay.squeeze().cpu().numpy()
-    
+        inner_iter_history_UPGA_J10_decay = list(model_UPGA_J10_decay.inner_iter_history)
+        label_UPGA_J10_decay = make_dynamic_upga_label(total_inner_layers(inner_iter_history_UPGA_J10_decay))
+        print(f'  Dynamic-UPGA (J_max=10) total inner layers: {total_inner_layers(inner_iter_history_UPGA_J10_decay)}')
+        print(f'  label: {label_UPGA_J10_decay}')
+
     if run_UPGA_J20_decay == 1:
         print('Running unfolded PGA with decaying J (max J=20)...')
         model_UPGA_J20_decay = PGA_Unfold_JX_decay(step_size_UPGA_J20_decay)
@@ -305,6 +312,10 @@ if run_program == 1:
                                                                                             n_iter_inner_J20)
         rate_iter_UPGA_J20_decay  = sum_rate_UPGA_J20_decay.squeeze().cpu().numpy()
         crb_iter_UPGA_J20_decay   = crb_UPGA_J20_decay.squeeze().cpu().numpy()
+        inner_iter_history_UPGA_J20_decay = list(model_UPGA_J20_decay.inner_iter_history)
+        label_UPGA_J20_decay = make_dynamic_upga_label(total_inner_layers(inner_iter_history_UPGA_J20_decay))
+        print(f'  Dynamic-UPGA (J_max=20) total inner layers: {total_inner_layers(inner_iter_history_UPGA_J20_decay)}')
+        print(f'  label: {label_UPGA_J20_decay}')
 
     if run_PGA_Conv_J5_line_search == 1:
         print('Running unfolded PGA with line search (J = 5)...')
@@ -404,6 +415,14 @@ if plot_figure == 1:
         print(f'Loading plot data from {plot_cache_file_name}...')
         globals().update(load_plot_cache(plot_cache_file_name))
         sync_run_flags_with_plot_data(globals())
+
+    # Rebuild Dynamic-UPGA labels from measured (or cached) inner-iteration histories.
+    if run_UPGA_J5_decay == 1 and 'inner_iter_history_UPGA_J5_decay' in globals():
+        label_UPGA_J5_decay = make_dynamic_upga_label(total_inner_layers(inner_iter_history_UPGA_J5_decay))
+    if run_UPGA_J10_decay == 1 and 'inner_iter_history_UPGA_J10_decay' in globals():
+        label_UPGA_J10_decay = make_dynamic_upga_label(total_inner_layers(inner_iter_history_UPGA_J10_decay))
+    if run_UPGA_J20_decay == 1 and 'inner_iter_history_UPGA_J20_decay' in globals():
+        label_UPGA_J20_decay = make_dynamic_upga_label(total_inner_layers(inner_iter_history_UPGA_J20_decay))
 
     #  /////////////////////////////////////////////////////////////////////////////////////////
     #                               PLOT FIGURES

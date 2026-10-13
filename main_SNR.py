@@ -22,6 +22,7 @@ def save_snr_plot_cache(file_path, namespace):
     prefixes = (
         'rate_',
         'CRB_',
+        'layers_',
     )
     payload = {'snr_dB_list': np.asarray(namespace['snr_dB_list'])}
     for key, value in namespace.items():
@@ -105,6 +106,9 @@ if run_program == 1:
     rate_UPGA_J5_decay = np.zeros([len(snr_dB_list), ], dtype=float)
     rate_UPGA_J10_decay = np.zeros([len(snr_dB_list), ], dtype=float)
     rate_UPGA_J20_decay = np.zeros([len(snr_dB_list), ], dtype=float)
+    layers_UPGA_J5_decay = []
+    layers_UPGA_J10_decay = []
+    layers_UPGA_J20_decay = []
 
     # CRB-based sensing metrics
     CRB_conv_PGA = np.zeros([len(snr_dB_list), ], dtype=float)
@@ -150,10 +154,29 @@ if run_program == 1:
 
         if run_UPGA_J5_decay == 1:
             rate_UPGA_J5_decay[ss], CRB_UPGA_J5_decay[ss] = execute_UPGA_J5_decay(model_UPGA_J5_decay, H_test, snr_ss)
+            layers_UPGA_J5_decay.append(total_inner_layers(model_UPGA_J5_decay.inner_iter_history))
         if run_UPGA_J10_decay == 1:
             rate_UPGA_J10_decay[ss], CRB_UPGA_J10_decay[ss] = execute_UPGA_J10_decay(model_UPGA_J10_decay, H_test, snr_ss)
+            layers_UPGA_J10_decay.append(total_inner_layers(model_UPGA_J10_decay.inner_iter_history))
         if run_UPGA_J20_decay == 1:
             rate_UPGA_J20_decay[ss], CRB_UPGA_J20_decay[ss] = execute_UPGA_J20_decay(model_UPGA_J20_decay, H_test, snr_ss)
+            layers_UPGA_J20_decay.append(total_inner_layers(model_UPGA_J20_decay.inner_iter_history))
+
+    if run_UPGA_J5_decay == 1 and layers_UPGA_J5_decay:
+        n_layers = int(round(float(np.mean(layers_UPGA_J5_decay))))
+        label_UPGA_J5_decay = make_dynamic_upga_label(n_layers)
+        print(f'Dynamic-UPGA (J_max=5) mean total inner layers over SNR: {n_layers}')
+        print(f'  label: {label_UPGA_J5_decay}')
+    if run_UPGA_J10_decay == 1 and layers_UPGA_J10_decay:
+        n_layers = int(round(float(np.mean(layers_UPGA_J10_decay))))
+        label_UPGA_J10_decay = make_dynamic_upga_label(n_layers)
+        print(f'Dynamic-UPGA (J_max=10) mean total inner layers over SNR: {n_layers}')
+        print(f'  label: {label_UPGA_J10_decay}')
+    if run_UPGA_J20_decay == 1 and layers_UPGA_J20_decay:
+        n_layers = int(round(float(np.mean(layers_UPGA_J20_decay))))
+        label_UPGA_J20_decay = make_dynamic_upga_label(n_layers)
+        print(f'Dynamic-UPGA (J_max=20) mean total inner layers over SNR: {n_layers}')
+        print(f'  label: {label_UPGA_J20_decay}')
 
     # Always refresh SNR plot cache after expensive run.
     print('Saving SNR plot data...')
@@ -164,6 +187,14 @@ if plot_figure == 1:
         snr_cache_file_name = get_snr_plot_cache_file_name()
         print(f'Loading SNR plot data from {snr_cache_file_name}...')
         globals().update(load_snr_plot_cache(snr_cache_file_name))
+
+    # Rebuild Dynamic-UPGA labels from measured (or cached) per-SNR layer counts.
+    if run_UPGA_J5_decay == 1 and 'layers_UPGA_J5_decay' in globals() and len(np.atleast_1d(layers_UPGA_J5_decay)) > 0:
+        label_UPGA_J5_decay = make_dynamic_upga_label(int(round(float(np.mean(np.atleast_1d(layers_UPGA_J5_decay))))))
+    if run_UPGA_J10_decay == 1 and 'layers_UPGA_J10_decay' in globals() and len(np.atleast_1d(layers_UPGA_J10_decay)) > 0:
+        label_UPGA_J10_decay = make_dynamic_upga_label(int(round(float(np.mean(np.atleast_1d(layers_UPGA_J10_decay))))))
+    if run_UPGA_J20_decay == 1 and 'layers_UPGA_J20_decay' in globals() and len(np.atleast_1d(layers_UPGA_J20_decay)) > 0:
+        label_UPGA_J20_decay = make_dynamic_upga_label(int(round(float(np.mean(np.atleast_1d(layers_UPGA_J20_decay))))))
 
     # ========================== plot rate vs SNR ==========================
     plt.figure(figsize=(8, 4.2))

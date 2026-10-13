@@ -209,9 +209,22 @@ label_UPGA_J20 = r'Fixed-UPGA, $2400$ inner layers'
 label_UPGA_J10_PC = r'UPGA ' + '$(J = ' + str(n_iter_inner_J10) + ', PC)$'
 label_conv_PGA_J10_PC = 'Conventional PGA ' + '$(J = ' + str(n_iter_inner_J10) + ', PC)$'
 
-label_UPGA_J5_decay = r'Dynamic-UPGA, $421$ inner layers'
-label_UPGA_J10_decay = r'Dynamic-UPGA, $722$ inner layers'
-label_UPGA_J20_decay = r'Dynamic-UPGA, $20$ inner layers'
+def make_dynamic_upga_label(n_inner_layers):
+    """Build the Dynamic-UPGA legend from the measured total inner-layer count."""
+    return rf'Dynamic-UPGA, ${int(n_inner_layers)}$ inner layers'
+
+
+def total_inner_layers(inner_iter_history):
+    """Sum per-outer adaptive J values into a total inner-layer count."""
+    if inner_iter_history is None:
+        return 0
+    return int(np.sum(np.asarray(inner_iter_history, dtype=np.int64)))
+
+
+# Placeholders overwritten after a decay run from ``inner_iter_history``.
+label_UPGA_J5_decay = r'Dynamic-UPGA'
+label_UPGA_J10_decay = r'Dynamic-UPGA'
+label_UPGA_J20_decay = r'Dynamic-UPGA'
 label_UPGA_J_GradReuse = r'GradReuse-UPGA, $600$ inner layers'
 label_ZF = 'ZF (digital, comm. only)'
 label_SCA = 'SCA-ManOpt (converged)'
