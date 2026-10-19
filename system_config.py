@@ -23,7 +23,7 @@ run_UPGA_J6 = 0            # Unfolded PGA with setting J = 6 (for ablation on in
 run_UPGA_J10 = 0           # Unfolded PGA with setting J = 10
 run_UPGA_J20 = 0           # Unfolded PGA with setting J = 20
 
-run_UPGA_J5_decay = 0        # Unfolded PGA with decaying inner iterations (J_max=5 → 1)
+run_UPGA_J5_decay = 1        # Unfolded PGA with decaying inner iterations (J_max=5 → 1)
 run_UPGA_J10_decay = 0       # Unfolded PGA with decaying inner iterations (J_max=10 → 1)
 run_UPGA_J20_decay = 0       # Unfolded PGA with decaying inner iterations (J_max=20 → 1)
 
@@ -35,8 +35,8 @@ run_PGA_Conv_J10_LS_SC = 0           # Sub-connected conv. PGA with line search 
 
 run_UPGA_J5_SC = 0                   # Sub-connected UPGA (fixed-block S init, J = 5)
 run_UPGA_J10_SC = 0                  # Sub-connected UPGA (fixed-block S init, J = 10)
-run_UPGA_J_GradReuse = 1             # Unfolded PGA with lazy gradient reuse (J = 5)
-run_UPGA_J_GradReuse_SC = 1          # Sub-connected UPGA with lazy gradient reuse (J = 5)
+run_UPGA_J_GradReuse = 0             # Unfolded PGA with lazy gradient reuse (J = 5)
+run_UPGA_J_GradReuse_SC = 0          # Sub-connected UPGA with lazy gradient reuse (J = 5)
 
 
 # ////////////////////////////////////////////// SYSTEM PARAMS //////////////////////////////////////////////
