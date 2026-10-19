@@ -421,28 +421,31 @@ class PGA_Unfold_JX(nn.Module):
 
 
 class PGA_Unfold_J_GradReuse(nn.Module):
-    """Unfolded PGA with lazy gradient reuse (same API as ``PGA_Unfold_JX``).
+    """Same as ``PGA_Unfold_JX``, plus lazy gradient reuse.
 
-    F inner-iteration strategy for each outer iteration ``ii``:
-      jj = 0  : always compute fresh ``grad_F``.
-      jj >= 1 : propose ``F_trial`` with the last stored gradient. Accept the
-                reuse if the combined objective increases; otherwise recompute.
+    F inner steps (per outer iteration ``ii``):
+      jj = 0  : always compute a fresh gradient (same as ``PGA_Unfold_JX``).
+      jj >= 1 : propose ``F_trial`` with the stored gradient; accept if the
+                combined objective increases, otherwise recompute and step.
 
-    W-update strategy across outer iterations:
-      ii = 0  : always compute fresh ``grad_W``.
-      ii >= 1 : propose ``W_trial`` with the stored W gradient. Accept if the
-                objective increases; otherwise recompute.
+    W outer steps:
+      ii = 0  : always compute a fresh gradient (same as ``PGA_Unfold_JX``).
+      ii >= 1 : propose ``W_trial`` with the stored W gradient; accept if the
+                objective increases, otherwise recompute and step.
     """
 
-    def __init__(self, step_size):
+    def __init__(self, step_size, alpha=0.01):
         super().__init__()
         self.step_size = nn.Parameter(step_size)
+        self.inner_iter_history = []
+        self.alpha = alpha
         self.grad_recalc_count = 0
         self.W_grad_recalc_count = 0
 
     def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
 
         rate_init, F, W = initialize(H, Pt, initial_normalization)
+
         B = len(H[0])
 
         rate_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
@@ -451,7 +454,6 @@ class PGA_Unfold_J_GradReuse(nn.Module):
         W_over_iters = []
         A_dot_over_iters = []
 
-        n_inner = self.step_size.shape[0]
         grad_recalc = 0
         W_grad_recalc = 0
         prev_grad_W_com = None
@@ -475,11 +477,10 @@ class PGA_Unfold_J_GradReuse(nn.Module):
                     if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
                         print('Error NaN gradients!!!!!!!!!!!!!!!')
                 else:
-                    F_trial = (
-                        F
-                        + self.step_size[jj][ii][0] * prev_grad_F_com * WEIGHT_F_COM
-                        + self.step_size[jj][ii][0] * prev_grad_F_crb * WEIGHT_F_CRB
-                    )
+                    # ---- reuse attempt (additional logic vs PGA_Unfold_JX) ----
+                    delta_F_com = self.step_size[jj][ii][0] * prev_grad_F_com
+                    delta_F_crb = self.step_size[jj][ii][0] * prev_grad_F_crb
+                    F_trial = (F + delta_F_com * WEIGHT_F_COM + delta_F_crb * WEIGHT_F_CRB)
                     F_trial = normalize_power(F_trial, W, H, Pt)
                     with torch.no_grad():
                         obj_trial = combined_obj(F_trial, W, A_dot, WEIGHT_F_COM, WEIGHT_F_CRB)
@@ -494,11 +495,10 @@ class PGA_Unfold_J_GradReuse(nn.Module):
                         print('Error NaN gradients!!!!!!!!!!!!!!!')
                     grad_recalc += 1
 
-                F = (
-                    F
-                    + self.step_size[jj][ii][0] * grad_F_com * WEIGHT_F_COM
-                    + self.step_size[jj][ii][0] * grad_F_crb * WEIGHT_F_CRB
-                )
+                # ---- same F step as PGA_Unfold_JX ----
+                delta_F_com = self.step_size[jj][ii][0] * grad_F_com
+                delta_F_crb = self.step_size[jj][ii][0] * grad_F_crb
+                F = (F + delta_F_com * WEIGHT_F_COM + delta_F_crb * WEIGHT_F_CRB)
                 F = normalize_power(F, W, H, Pt)
                 prev_grad_F_com = grad_F_com.detach()
                 prev_grad_F_crb = grad_F_crb.detach()
@@ -507,20 +507,25 @@ class PGA_Unfold_J_GradReuse(nn.Module):
             return F
 
         for ii in range(n_iter_outer):
+            n_inner = self.step_size.shape[0]
+
+            # compute A_dot which has the minimum 1/CRLB for the given theta_desire_batch
             A_dot = compute_A_dot(H, F, W, xi_0, theta_desire_batch, R_N_inv, Pt)
 
             if track_metrics:
                 F = inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt)
+                rate_over_iters[ii, 0] = get_sum_rate(H, F, W, Pt).detach()
+                crb_over_iters[ii, 0] = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt).detach()
             else:
                 F = checkpoint(inner_f_update, F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt, use_reentrant=False)
 
             F = project_unit_modulus(F)
 
-            with torch.no_grad():
-                obj_preW = combined_obj(F, W, A_dot, WEIGHT_W_COM, WEIGHT_W_CRB)
-
+            # ---- W update: reuse attempt, else same as PGA_Unfold_JX ----
             w_reuse_accepted = False
             if ii > 0 and prev_grad_W_com is not None:
+                with torch.no_grad():
+                    obj_preW = combined_obj(F, W, A_dot, WEIGHT_W_COM, WEIGHT_W_CRB)
                 W_trial_new = (
                     W
                     + self.step_size[0][ii][1] * prev_grad_W_com * WEIGHT_W_COM
@@ -533,30 +538,21 @@ class PGA_Unfold_J_GradReuse(nn.Module):
                     F, W = F_wt, W_trial
                     w_reuse_accepted = True
                 else:
-                    grad_W_com = get_grad_W_com(H, F, W)
-                    grad_W_crb = get_grad_W_crb(F, W, xi_0, A_dot, R_N_inv)
-                    if grad_W_com.isnan().any() or grad_W_crb.isnan().any():
-                        print('Error NaN gradients (W)!!!!!!!!!!!!!!!')
                     W_grad_recalc += 1
-            else:
-                grad_W_com = get_grad_W_com(H, F, W)
-                grad_W_crb = get_grad_W_crb(F, W, xi_0, A_dot, R_N_inv)
-                if grad_W_com.isnan().any() or grad_W_crb.isnan().any():
-                    print('Error NaN gradients (W)!!!!!!!!!!!!!!!')
 
             if not w_reuse_accepted:
-                W_new = (
-                    W
-                    + self.step_size[0][ii][1] * grad_W_com * WEIGHT_W_COM
-                    + self.step_size[0][ii][1] * grad_W_crb * WEIGHT_W_CRB
-                )
-                F, W = normalize(F, W_new, H, Pt)
-                prev_grad_W_com = grad_W_com.detach()
-                prev_grad_W_crb = grad_W_crb.detach()
+                grad_W_k_com = get_grad_W_com(H, F, W)
+                grad_W_k_crb = get_grad_W_crb(F, W, xi_0, A_dot, R_N_inv)
+                if grad_W_k_com.isnan().any() or grad_W_k_crb.isnan().any():
+                    print('Error NaN gradients (W)!!!!!!!!!!!!!!!')
+                grad_J_w = grad_W_k_com * WEIGHT_W_COM + grad_W_k_crb * WEIGHT_W_CRB
 
-            if track_metrics:
-                rate_over_iters[ii, 0] = get_sum_rate(H, F, W, Pt).detach()
-                crb_over_iters[ii, 0] = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt).detach()
+                W_new = (W + self.step_size[0][ii][1] * grad_W_k_com * WEIGHT_W_COM + self.step_size[0][ii][1] * grad_W_k_crb * WEIGHT_W_CRB)
+
+                F, W = normalize(F, W_new, H, Pt)
+                prev_grad_W_com = grad_W_k_com.detach()
+                prev_grad_W_crb = grad_W_k_crb.detach()
+
             F_over_iters.append(F)
             W_over_iters.append(W)
             A_dot_over_iters.append(A_dot)
@@ -564,14 +560,15 @@ class PGA_Unfold_J_GradReuse(nn.Module):
         self.grad_recalc_count = grad_recalc
         self.W_grad_recalc_count = W_grad_recalc
         if track_metrics:
-            max_possible_F = n_iter_outer * max(n_inner - 1, 0)
+            max_possible_F = n_iter_outer * max(self.step_size.shape[0] - 1, 0)
             max_possible_W = max(n_iter_outer - 1, 0)
             print(f'[GradReuse] F fallback recomputations = {grad_recalc} / {max_possible_F} '
                   f'({100.0 * grad_recalc / max(max_possible_F, 1):.1f}%)')
             print(f'[GradReuse] W fallback recomputations = {W_grad_recalc} / {max_possible_W} '
                   f'({100.0 * W_grad_recalc / max(max_possible_W, 1):.1f}%)')
 
-        rate_over_iters = rate_over_iters.mean(dim=-1, keepdim=True)
+        ## average over the batch
+        rate_over_iters = rate_over_iters.mean(dim=-1, keepdim=True)  # dimension: (n_iter_outer, 1, 1)
         crb_over_iters = crb_over_iters.mean(dim=-1, keepdim=True)
 
         if track_metrics:
@@ -686,21 +683,17 @@ class PGA_Unfold_Sub_Connected_JX(nn.Module):
 
 
 class PGA_Unfold_J_GradReuse_SC(nn.Module):
-    """Sub-connected unfolded PGA with lazy gradient reuse.
-
-    Combines ``PGA_Unfold_Sub_Connected_JX`` (F ⊙ S, simplex S, (J, I, 3)
-    step sizes) with the objective-checked reuse of ``PGA_Unfold_J_GradReuse``
-    and ``JointUPGANet_GradReuse``:
+    """Same as ``PGA_Unfold_Sub_Connected_JX``, plus lazy gradient reuse.
 
     F/S inner steps (per outer iteration ``ii``):
-      jj = 0  : always compute a fresh ``grad_F_eff``.
-      jj >= 1 : propose ``(F_trial, S_trial)`` from the stored ``grad_F_eff``.
-                Accept if the combined objective increases; otherwise recompute.
+      jj = 0  : always compute a fresh ``grad_F_eff`` (same as sub-connected UPGA).
+      jj >= 1 : propose ``(F_trial, S_trial)`` from the stored ``grad_F_eff``;
+                accept if the objective increases, otherwise recompute and step.
 
     W outer steps:
-      ii = 0  : always compute a fresh ``grad_W``.
-      ii >= 1 : propose ``W_trial`` from the stored W gradient. Accept if the
-                objective increases; otherwise recompute.
+      ii = 0  : always compute a fresh ``grad_W`` (same as sub-connected UPGA).
+      ii >= 1 : propose ``W_trial`` from the stored W gradient; accept if the
+                objective increases, otherwise recompute and step.
 
     Metrics and the returned analog precoder use ``F_eff = F ⊙ S``.
     """
@@ -713,6 +706,7 @@ class PGA_Unfold_J_GradReuse_SC(nn.Module):
                 dim=-1,
             )
         self.step_size = nn.Parameter(step_size)
+        self.inner_iter_history = []
         self.alpha = alpha
         self.grad_recalc_count = 0
         self.W_grad_recalc_count = 0
@@ -735,7 +729,6 @@ class PGA_Unfold_J_GradReuse_SC(nn.Module):
         W_over_iters = []
         A_dot_over_iters = []
 
-        n_inner = self.step_size.shape[0]
         grad_recalc = 0
         W_grad_recalc = 0
         prev_grad_W_com = None
@@ -761,6 +754,7 @@ class PGA_Unfold_J_GradReuse_SC(nn.Module):
                         print('Error NaN gradients!!!!!!!!!!!!!!!')
                     grad_F_eff = grad_F_com * WEIGHT_F_COM + grad_F_crb * WEIGHT_F_CRB
                 else:
+                    # ---- reuse attempt (additional logic vs Sub_Connected_JX) ----
                     grad_F = S * prev_grad_F_eff
                     grad_S = 2.0 * torch.real(torch.conj(F) * prev_grad_F_eff)
                     F_trial = F + self.step_size[jj][ii][0] * grad_F
@@ -782,18 +776,25 @@ class PGA_Unfold_J_GradReuse_SC(nn.Module):
                     grad_F_eff = grad_F_com * WEIGHT_F_COM + grad_F_crb * WEIGHT_F_CRB
                     grad_recalc += 1
 
+                # ---- same F/S step as PGA_Unfold_Sub_Connected_JX ----
                 grad_F = S * grad_F_eff
                 grad_S = 2.0 * torch.real(torch.conj(F) * grad_F_eff)
+
                 F = F + self.step_size[jj][ii][0] * grad_F
                 F = project_unit_modulus(F)
                 F = normalize_power(F, W, H, Pt)
-                S = project_to_simplex_rows(S + self.step_size[jj][ii][1] * grad_S)
+
+                S = S + self.step_size[jj][ii][1] * grad_S
+                S = project_to_simplex_rows(S)
+
                 prev_grad_F_eff = grad_F_eff.detach()
                 with torch.no_grad():
                     prev_obj = combined_obj(F, S, W, A_dot, WEIGHT_F_COM, WEIGHT_F_CRB)
             return F, S
 
         for ii in range(n_iter_outer):
+            n_inner = self.step_size.shape[0]
+
             A_dot = compute_A_dot(H, F * S, W, xi_0, theta_desire_batch, R_N_inv, Pt)
 
             if track_metrics:
@@ -803,11 +804,12 @@ class PGA_Unfold_J_GradReuse_SC(nn.Module):
 
             F = project_unit_modulus(F)
             F_eff = F * S
-            with torch.no_grad():
-                obj_preW = combined_obj(F, S, W, A_dot, WEIGHT_W_COM, WEIGHT_W_CRB)
 
+            # ---- W update: reuse attempt, else same as Sub_Connected_JX ----
             w_reuse_accepted = False
             if ii > 0 and prev_grad_W_com is not None:
+                with torch.no_grad():
+                    obj_preW = combined_obj(F, S, W, A_dot, WEIGHT_W_COM, WEIGHT_W_CRB)
                 W_trial_new = (
                     W
                     + self.step_size[0][ii][2] * prev_grad_W_com * WEIGHT_W_COM
@@ -820,26 +822,20 @@ class PGA_Unfold_J_GradReuse_SC(nn.Module):
                     F, W = F_wt, W_trial
                     w_reuse_accepted = True
                 else:
-                    grad_W_com = get_grad_W_com(H, F_eff, W)
-                    grad_W_crb = get_grad_W_crb(F_eff, W, xi_0, A_dot, R_N_inv)
-                    if grad_W_com.isnan().any() or grad_W_crb.isnan().any():
-                        print('Error NaN gradients (W)!!!!!!!!!!!!!!!')
                     W_grad_recalc += 1
-            else:
-                grad_W_com = get_grad_W_com(H, F_eff, W)
-                grad_W_crb = get_grad_W_crb(F_eff, W, xi_0, A_dot, R_N_inv)
-                if grad_W_com.isnan().any() or grad_W_crb.isnan().any():
-                    print('Error NaN gradients (W)!!!!!!!!!!!!!!!')
 
             if not w_reuse_accepted:
-                W_new = (
-                    W
-                    + self.step_size[0][ii][2] * grad_W_com * WEIGHT_W_COM
-                    + self.step_size[0][ii][2] * grad_W_crb * WEIGHT_W_CRB
-                )
+                grad_W_k_com = get_grad_W_com(H, F_eff, W)
+                grad_W_k_crb = get_grad_W_crb(F_eff, W, xi_0, A_dot, R_N_inv)
+                if grad_W_k_com.isnan().any() or grad_W_k_crb.isnan().any():
+                    print('Error NaN gradients (W)!!!!!!!!!!!!!!!')
+
+                W_new = (W + self.step_size[0][ii][2] * grad_W_k_com * WEIGHT_W_COM
+                           + self.step_size[0][ii][2] * grad_W_k_crb * WEIGHT_W_CRB)
+
                 F, W = normalize(F, W_new, H, Pt)
-                prev_grad_W_com = grad_W_com.detach()
-                prev_grad_W_crb = grad_W_crb.detach()
+                prev_grad_W_com = grad_W_k_com.detach()
+                prev_grad_W_crb = grad_W_k_crb.detach()
 
             F_eff = F * S
             if track_metrics:
@@ -852,7 +848,7 @@ class PGA_Unfold_J_GradReuse_SC(nn.Module):
         self.grad_recalc_count = grad_recalc
         self.W_grad_recalc_count = W_grad_recalc
         if track_metrics:
-            max_possible_F = n_iter_outer * max(n_inner - 1, 0)
+            max_possible_F = n_iter_outer * max(self.step_size.shape[0] - 1, 0)
             max_possible_W = max(n_iter_outer - 1, 0)
             print(f'[GradReuse-SC] F/S fallback recomputations = {grad_recalc} / {max_possible_F} '
                   f'({100.0 * grad_recalc / max(max_possible_F, 1):.1f}%)')
@@ -920,10 +916,10 @@ class PGA_Unfold_JX_decay(nn.Module):
                 grad_F_J = WEIGHT_F_COM * grad_F_com + WEIGHT_F_CRB * grad_F_crb
                 g = torch.linalg.matrix_norm(grad_F_J, ord='fro').mean()
 
-                if jj == 0:
-                    g0 = g.detach()
-                elif jj >= J_min and (g <= self.eta * g0).item():
-                    break
+                # if jj == 0:
+                #     g0 = g.detach()
+                # elif jj >= J_min and (g <= self.eta * g0).item():
+                #     break
 
                 delta_F_com = self.step_size[jj][ii][0] * grad_F_com
                 delta_F_crb = self.step_size[jj][ii][0] * grad_F_crb
