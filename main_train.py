@@ -74,7 +74,9 @@ def run_UPGA(step_size_UPGA):
         epoch_losses.append(avg_loss)
         print(f"Epoch [{i_epoch+1}/{n_epoch}], Average Loss: {avg_loss:.4f}")
 
-    torch.save(model_UPGA.state_dict(), directory_model + f'UPGA_J{step_size_UPGA.shape[0]}.pth')
+    save_path = model_file(f'UPGA_J{step_size_UPGA.shape[0]}')
+    torch.save(model_UPGA.state_dict(), save_path)
+    print(f'Saved {save_path}')
 
 
 def run_UPGA_decay(step_size_UPGA_decay):
@@ -108,7 +110,9 @@ def run_UPGA_decay(step_size_UPGA_decay):
         epoch_losses.append(avg_loss)
         print(f"Epoch [{i_epoch+1}/{n_epoch}], Average Loss: {avg_loss:.4f}")
 
-    torch.save(model_UPGA_decay.state_dict(), directory_model + f'UPGA_J{step_size_UPGA_decay.shape[0]}_decay.pth')
+    save_path = model_file(f'UPGA_J{step_size_UPGA_decay.shape[0]}_decay')
+    torch.save(model_UPGA_decay.state_dict(), save_path)
+    print(f'Saved {save_path}')
 
 
 def run_UPGA_subconnected(step_size_UPGA):
@@ -146,7 +150,9 @@ def run_UPGA_subconnected(step_size_UPGA):
         epoch_losses.append(avg_loss)
         print(f"Epoch [{i_epoch+1}/{n_epoch}], Average Loss: {avg_loss:.4f}")
 
-    torch.save(model_UPGA_SC.state_dict(), directory_model + f'UPGA_J{step_size_UPGA.shape[0]}_SC.pth')
+    save_path = model_file(f'UPGA_J{step_size_UPGA.shape[0]}_SC')
+    torch.save(model_UPGA_SC.state_dict(), save_path)
+    print(f'Saved {save_path}')
 
 
 def run_UPGA_gradreuse(step_size_UPGA):
@@ -182,7 +188,9 @@ def run_UPGA_gradreuse(step_size_UPGA):
         epoch_losses.append(avg_loss)
         print(f"Epoch [{i_epoch+1}/{n_epoch}], Average Loss: {avg_loss:.4f}")
 
-    torch.save(model_UPGA_GR.state_dict(), model_file_name_UPGA_J_GradReuse)
+    save_path = model_file('UPGA_J_GradReuse')
+    torch.save(model_UPGA_GR.state_dict(), save_path)
+    print(f'Saved {save_path}')
 
 
 def run_UPGA_gradreuse_sc(step_size_UPGA):
@@ -222,7 +230,9 @@ def run_UPGA_gradreuse_sc(step_size_UPGA):
         print(f"  [GradReuse-SC fallback recomputations this epoch: "
               f"F/S={model_UPGA_GR_SC.grad_recalc_count}, W={model_UPGA_GR_SC.W_grad_recalc_count}]")
 
-    torch.save(model_UPGA_GR_SC.state_dict(), model_file_name_UPGA_J_GradReuse_SC)
+    save_path = model_file('UPGA_J_GradReuse_SC')
+    torch.save(model_UPGA_GR_SC.state_dict(), save_path)
+    print(f'Saved {save_path}')
 
 
 # ====================================================== Conventional PGA ====================================

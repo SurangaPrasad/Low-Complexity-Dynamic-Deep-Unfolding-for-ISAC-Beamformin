@@ -18,7 +18,7 @@ run_conv_PGA_J20 = 0
 run_conv_PGA_J10_PC = 0    # Conventional PGA with J = 10 and partial coupling (PC) 
 run_UPGA_J1 = 0            # Unfolded PGA without any modification (J = 1)
 run_UPGA_J4 = 0
-run_UPGA_J5 = 0            # Unfolded PGA with setting J = 5
+run_UPGA_J5 = 1            # Unfolded PGA with setting J = 5
 run_UPGA_J6 = 0            # Unfolded PGA with setting J = 6 (for ablation on inner iteration number)
 run_UPGA_J10 = 0           # Unfolded PGA with setting J = 10
 run_UPGA_J20 = 0           # Unfolded PGA with setting J = 20
@@ -28,7 +28,7 @@ run_UPGA_J10_decay = 0       # Unfolded PGA with decaying inner iterations (J_ma
 run_UPGA_J20_decay = 0       # Unfolded PGA with decaying inner iterations (J_max=20 → 1)
 
 
-run_PGA_Conv_J5_line_search = 1      # Unfolded PGA with line search (J = 5)
+run_PGA_Conv_J5_line_search = 0      # Unfolded PGA with line search (J = 5)
 run_PGA_Conv_J10_line_search = 0      # Unfolded PGA with line search (J = 10)
 run_PGA_Conv_J5_LS_SC = 0            # Sub-connected conv. PGA with line search (J = 5)
 run_PGA_Conv_J10_LS_SC = 0           # Sub-connected conv. PGA with line search (J = 10)
@@ -37,6 +37,11 @@ run_UPGA_J5_SC = 0                   # Sub-connected UPGA (fixed-block S init, J
 run_UPGA_J10_SC = 0                  # Sub-connected UPGA (fixed-block S init, J = 10)
 run_UPGA_J_GradReuse = 0             # Unfolded PGA with lazy gradient reuse (J = 5)
 run_UPGA_J_GradReuse_SC = 0          # Sub-connected UPGA with lazy gradient reuse (J = 5)
+
+run_init_random = 1                  # Random unit-modulus analog init
+run_init_svd = 1                     # SVD of H analog init
+run_init_prop = 1                    # Proposed (PE-AltMin analog) init
+run_init_isac_eigen = 1              # ISAC-eigen analog init
 
 
 # ////////////////////////////////////////////// SYSTEM PARAMS //////////////////////////////////////////////
@@ -57,7 +62,7 @@ snr_dB_list = np.array([0, 2, 4, 6, 8, 10, 12], dtype='float64') # SNR for showi
 init_W = 'ZF' # initialization scheme
 initial_normalization = 0  # normalization for initialization
 data_source = 'matlab'  # data generate by matlab or python
-init_scheme = 'svd'  # proposed initialization for best convergence
+init_scheme = 'prop'  # ISAC-eigen analog init (comm+sensing Gramian)
 
 
 system_config = str(Nt) + "TX_" + str(M) + "UE_" + str(Nrf) + "RF"
@@ -68,7 +73,7 @@ OMEGA = 0.25
 
 # ////////////////////////////////////////////// MODEL PARAMS //////////////////////////////////////////////
 train_size = 112 * 2    # size of training set
-test_size = 10     # size of testing set
+test_size = 20     # size of testing set
 batch_size = len(snr_dB_list) * 4
 n_epoch = 20         # number of training epochs
 learning_rate = 0.0005 # learning 
@@ -168,22 +173,35 @@ directory_model03 = "./model/" + system_config  + "/"
 if not os.path.exists(directory_model):
     os.makedirs(directory_model)
 
-model_file_name_UPGA_J1 = directory_model + 'UPGA_J1.pth'
-model_file_name_UPGA_J5 = directory_model + 'UPGA_J5.pth'
-model_file_name_UPGA_J10 = directory_model + 'UPGA_J10.pth'
-model_file_name_UPGA_J10_PRCDN = directory_model + 'UPGA_J10_PRCDN.pth'
-model_file_name_UPGA_J20 = directory_model + 'UPGA_J20.pth'
-model_file_name_UPGA_J10_PC = directory_model + 'UPGA_J10_PC.pth'
-model_file_name_UPGA_J5_decay = directory_model + 'UPGA_J5_decay.pth'
-model_file_name_UPGA_J10_decay = directory_model + 'UPGA_J10_decay.pth'
-model_file_name_UPGA_J20_decay = directory_model + 'UPGA_J20_decay.pth'
-model_file_name_UPGA_J_GradReuse = directory_model + 'UPGA_J_GradReuse.pth'
+def model_file(stem, scheme=None):
+    if scheme is None:
+        scheme = init_scheme
+    return directory_model + f'{stem}_{scheme}.pth'
+
+def load_model_file(stem, scheme=None):
+    path = model_file(stem, scheme)
+    if os.path.exists(path):
+        return path
+    return directory_model + f'{stem}.pth'
+
+model_file_name_UPGA_J1 = model_file('UPGA_J1')
+model_file_name_UPGA_J4 = model_file('UPGA_J4')
+model_file_name_UPGA_J5 = model_file('UPGA_J5')
+model_file_name_UPGA_J6 = model_file('UPGA_J6')
+model_file_name_UPGA_J10 = model_file('UPGA_J10')
+model_file_name_UPGA_J10_PRCDN = model_file('UPGA_J10_PRCDN')
+model_file_name_UPGA_J20 = model_file('UPGA_J20')
+model_file_name_UPGA_J10_PC = model_file('UPGA_J10_PC')
+model_file_name_UPGA_J5_decay = model_file('UPGA_J5_decay')
+model_file_name_UPGA_J10_decay = model_file('UPGA_J10_decay')
+model_file_name_UPGA_J20_decay = model_file('UPGA_J20_decay')
+model_file_name_UPGA_J_GradReuse = model_file('UPGA_J_GradReuse')
 model_file_name_UPGA_J10_PC_omega03 = directory_model03 + 'UPGA_J10_PC.pth'
 
-model_file_name_PGA_Conv_J10_LS = directory_model + 'PGA_Conv_J10_LS.pth'
-model_file_name_UPGA_J5_SC = directory_model + 'UPGA_J5_SC.pth'
-model_file_name_UPGA_J10_SC = directory_model + 'UPGA_J10_SC.pth'
-model_file_name_UPGA_J_GradReuse_SC = directory_model + 'UPGA_J_GradReuse_SC.pth'
+model_file_name_PGA_Conv_J10_LS = model_file('PGA_Conv_J10_LS')
+model_file_name_UPGA_J5_SC = model_file('UPGA_J5_SC')
+model_file_name_UPGA_J10_SC = model_file('UPGA_J10_SC')
+model_file_name_UPGA_J_GradReuse_SC = model_file('UPGA_J_GradReuse_SC')
 
 # To save result figures
 directory_result = "./sim_results/" + system_config + "/"
@@ -239,6 +257,11 @@ label_UPGA_J_GradReuse_SC = r'Sub-connected GradReuse-UPGA, $600$ inner layers'
 Conv_PGA_J1 = r'Conv. PGA, $120$ inner iterations'
 Conv_PGA_J5 = r'Conv. PGA, $600$ inner iterations'
 Conv_PGA_J10 = r'Conv. PGA, $1200$ inner iterations'
+
+label_init_random = r'Random'
+label_init_svd = r'SVD of $H$'
+label_init_prop = r'Proposed'
+label_init_isac_eigen = r'ISAC-eigen'
 
 
 #### Sensing angles for beampattern design

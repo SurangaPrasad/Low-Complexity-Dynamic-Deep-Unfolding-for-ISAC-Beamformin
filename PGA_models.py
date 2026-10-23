@@ -131,9 +131,9 @@ class PGA_Conv_line_search(nn.Module):
 
 
     # =========== Projection Gradient Ascent execution ===================
-    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True, init_method=None):
 
-        _, F, W = initialize(H, Pt, initial_normalization)
+        _, F, W = initialize(H, Pt, initial_normalization, scheme=init_method)
 
         B = len(H[0])
 
@@ -234,9 +234,9 @@ class PGA_Conv_line_search_sub_connected(nn.Module):
         s0 = mask.float() if mask is not None else build_fixed_subconnected_mask(n_ant, n_rf)
         self.register_buffer('fixed_s0', s0)
 
-    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True, init_method=None):
 
-        _, F, W = initialize(H, Pt, initial_normalization)
+        _, F, W = initialize(H, Pt, initial_normalization, scheme=init_method)
         B = len(H[0])
         S = self.fixed_s0.to(device=F.device, dtype=F.real.dtype)
         S = S.view(*([1] * (F.dim() - 2)), S.shape[-2], S.shape[-1]).expand_as(F.real).clone()
@@ -357,9 +357,9 @@ class PGA_Unfold_JX(nn.Module):
         self.alpha = alpha
 
     # =========== Projection Gradient Ascent execution ===================
-    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True, init_method=None):
 
-        rate_init, F, W = initialize(H, Pt, initial_normalization)
+        rate_init, F, W = initialize(H, Pt, initial_normalization, scheme=init_method)
 
         B = len(H[0])
 
@@ -442,9 +442,9 @@ class PGA_Unfold_J_GradReuse(nn.Module):
         self.grad_recalc_count = 0
         self.W_grad_recalc_count = 0
 
-    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True, init_method=None):
 
-        rate_init, F, W = initialize(H, Pt, initial_normalization)
+        rate_init, F, W = initialize(H, Pt, initial_normalization, scheme=init_method)
 
         B = len(H[0])
 
@@ -611,9 +611,9 @@ class PGA_Unfold_Sub_Connected_JX(nn.Module):
         s0 = mask.float() if mask is not None else build_fixed_subconnected_mask(n_ant, n_rf)
         self.register_buffer('fixed_s0', s0)
 
-    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True, init_method=None):
 
-        rate_init, F, W = initialize(H, Pt, initial_normalization)
+        rate_init, F, W = initialize(H, Pt, initial_normalization, scheme=init_method)
         B = len(H[0])
         S = self.fixed_s0.to(device=F.device, dtype=F.real.dtype)
         S = S.view(*([1] * (F.dim() - 2)), S.shape[-2], S.shape[-1]).expand_as(F.real).clone()
@@ -716,9 +716,9 @@ class PGA_Unfold_J_GradReuse_SC(nn.Module):
         s0 = mask.float() if mask is not None else build_fixed_subconnected_mask(n_ant, n_rf)
         self.register_buffer('fixed_s0', s0)
 
-    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True, init_method=None):
 
-        rate_init, F, W = initialize(H, Pt, initial_normalization)
+        rate_init, F, W = initialize(H, Pt, initial_normalization, scheme=init_method)
         B = len(H[0])
         S = self.fixed_s0.to(device=F.device, dtype=F.real.dtype)
         S = S.view(*([1] * (F.dim() - 2)), S.shape[-2], S.shape[-1]).expand_as(F.real).clone()
@@ -877,7 +877,7 @@ class PGA_Unfold_JX_decay(nn.Module):
     for ``jj >= J_min``, otherwise it runs the full ``J_max`` layers.
     """
 
-    def __init__(self, step_size, alpha=0.04, eps=1e-12, J_min=2, eta=0.2):
+    def __init__(self, step_size, alpha=0.04, eps=1e-12, J_min=2, eta=0.95):
         super().__init__()
 
         self.step_size = nn.Parameter(step_size)  # parameters = (mu, lambda)
@@ -888,9 +888,9 @@ class PGA_Unfold_JX_decay(nn.Module):
         self.alpha = alpha  # unused; kept so existing call sites stay valid
 
     # =========== Projection Gradient Ascent execution ===================
-    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True, init_method=None):
 
-        rate_init, F, W = initialize(H, Pt, initial_normalization)
+        rate_init, F, W = initialize(H, Pt, initial_normalization, scheme=init_method)
 
         B = len(H[0])
 
@@ -916,10 +916,10 @@ class PGA_Unfold_JX_decay(nn.Module):
                 grad_F_J = WEIGHT_F_COM * grad_F_com + WEIGHT_F_CRB * grad_F_crb
                 g = torch.linalg.matrix_norm(grad_F_J, ord='fro').mean()
 
-                # if jj == 0:
-                #     g0 = g.detach()
-                # elif jj >= J_min and (g <= self.eta * g0).item():
-                #     break
+                if jj == 0:
+                    g0 = g.detach()
+                elif track_metrics and jj >= J_min and (g <= self.eta * g0).item():
+                    break
 
                 delta_F_com = self.step_size[jj][ii][0] * grad_F_com
                 delta_F_crb = self.step_size[jj][ii][0] * grad_F_crb

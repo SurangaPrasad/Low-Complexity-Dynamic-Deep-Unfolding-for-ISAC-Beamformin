@@ -68,15 +68,43 @@ def compute_A_dot(H, F, W, xi_0, theta_desire, R_N_inv, Pt):
     return best_A_dot
 
 
+def initialize_isac_eigen(H, A_dot_batch=None):
+    """ISAC-eigen analog start: EVD of weighted comm+sensing Gramian, then ZF digital.
+
+    R_c = H^H H, R_s = A_dot^H A_dot, R = WEIGHT_F_COM R_c + WEIGHT_F_CRB R_s.
+    Analog F is the unit-modulus projection of the Nrf leading eigenvectors of R.
+    Digital W is the same ZF used by the SVD branch. Uses the global A_dot unless
+    a batch-specific A_dot_batch is passed.
+    """
+    A_s = A_dot if A_dot_batch is None else A_dot_batch
+    A_s = A_s.to(device=H.device, dtype=H.dtype)
+    Hk = H[K // 2]
+    R_c = Hk.mH @ Hk
+    R_s = A_s.mH @ A_s
+    R = WEIGHT_F_COM * R_c + WEIGHT_F_CRB * R_s
+    R = 0.5 * (R + R.mH)
+    _evals, evecs = torch.linalg.eigh(R)
+    F0 = evecs[..., -Nrf:]
+    F0 = F0 / torch.abs(F0)
+    F = torch.cat(((F0[None, :, :, :],) * H.shape[0]), 0)
+    Hp = H.conj()
+    Q = torch.linalg.pinv(Hp)
+    FQ = torch.linalg.pinv(F) @ Q
+    W = FQ / (torch.linalg.matrix_norm(FQ, ord='fro').reshape(len(H[0]), 1, 1))
+    return F, W
+
+
 # ==================================== initialize F and W ===========================
-def initialize(H, Pt, normalization, pc=False):
-    if init_scheme == 'conv':
+def initialize(H, Pt, normalization, pc=False, scheme=None):
+    if scheme is None:
+        scheme = init_scheme
+    if scheme == 'conv':
         # randomizing F
         F = randn_complex((len(H[0]), Nt, Nrf), device=H.device)
         F = F / torch.abs(F)
         F = torch.cat(((F[None, :, :, :],) * K), 0)
         W = torch.linalg.pinv(H @ F)
-    elif init_scheme == 'prop':  # use Le Liang's paper: Low-Complexity Hybrid Precoding in Massive Multiuser MIMO Systems
+    elif scheme == 'prop':  # use Le Liang's paper: Low-Complexity Hybrid Precoding in Massive Multiuser MIMO Systems
         # if K == 1:
         #     F = H / torch.abs(H)
         #     F = torch.transpose(F, 2, 3)
@@ -116,7 +144,7 @@ def initialize(H, Pt, normalization, pc=False):
         else:
             sys.stderr.write('Error: Wrong RF chain configuration....\n')
         F = F * generage_partial_connection_mask(Nt, Nrf, device=F.device) if pc else F
-    elif init_scheme == 'svd':
+    elif scheme == 'svd':
         U, S, V_H = torch.linalg.svd(H)
         V = V_H
         # V = torch.transpose(V_H, 2, 3).conj()
@@ -126,6 +154,8 @@ def initialize(H, Pt, normalization, pc=False):
         Q = torch.linalg.pinv(Hp)
         FQ = torch.linalg.pinv(F) @ Q
         W = FQ / (torch.linalg.matrix_norm(FQ, ord='fro').reshape(len(H[0]), 1, 1))
+    elif scheme == 'isac_eigen':
+        F, W = initialize_isac_eigen(H)
     else:
         R, at0, theta, ideal_beam = get_radar_data(snr_dB, H)
         at = at0[:, : batch_size, :, :]
@@ -232,6 +262,8 @@ def initialize_schemes(H, R, Pt, init_method):
                 W[k, :, :, :] = Wtmp / Wtmp_norm
             F = torch.cat(((F[None, :, :, :],) * K), 0)
 
+    elif init_method == 'isac_eigen':
+        F, W = initialize_isac_eigen(H)
     else:
         R, at0, theta, ideal_beam = get_radar_data(snr_dB, H)
         at = at0[:, : batch_size, :, :]

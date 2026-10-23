@@ -11,6 +11,7 @@ save_result = 0
 load_saved_plot_data = 0
 
 step_size_snapshots = []
+init_compare_curves = []
 
 
 def get_plot_cache_file_name():
@@ -45,6 +46,7 @@ def save_plot_cache(file_path, namespace):
     prefixes = (
         'rate_iter_',
         'crb_iter_',
+        'obj_iter_',
         'power_iter_',
         'beam_',
         'gradient_norm_history_',
@@ -110,6 +112,10 @@ def sync_run_flags_with_plot_data(namespace):
         'run_UPGA_J20_decay': ('rate_iter_UPGA_J20_decay', 'crb_iter_UPGA_J20_decay', 'inner_iter_history_UPGA_J20_decay'),
         'run_UPGA_J_GradReuse': ('rate_iter_UPGA_J_GradReuse', 'crb_iter_UPGA_J_GradReuse'),
         'run_UPGA_J_GradReuse_SC': ('rate_iter_UPGA_J_GradReuse_SC', 'crb_iter_UPGA_J_GradReuse_SC'),
+        'run_init_random': ('obj_iter_init_conv',),
+        'run_init_svd': ('obj_iter_init_svd',),
+        'run_init_prop': ('obj_iter_init_prop',),
+        'run_init_isac_eigen': ('obj_iter_init_isac_eigen',),
         'run_UPGA_J5_SC': ('rate_iter_UPGA_J5_SC', 'crb_iter_UPGA_J5_SC'),
         'run_UPGA_J10_SC': ('rate_iter_UPGA_J10_SC', 'crb_iter_UPGA_J10_SC'),
         'run_PGA_Conv_J5_LS_SC': ('rate_iter_PGA_Conv_J5_LS_SC', 'crb_iter_PGA_Conv_J5_LS_SC'),
@@ -185,7 +191,7 @@ if run_program == 1:
         print('Running unfolded PGA with J = 1...')
         # Create new model and load states
         model_UPGA_J1 = PGA_Unfold_JX(step_size_UPGA_J1)
-        model_UPGA_J1.load_state_dict(torch.load(model_file_name_UPGA_J1, map_location=device))
+        model_UPGA_J1.load_state_dict(torch.load(load_model_file('UPGA_J1'), map_location=device))
         register_step_size('UPGA (J=1)', model_UPGA_J1.step_size)
 
         sum_rate_UPGA_J1, crb_UPGA_J1, F_UPGA_J1, W_UPGA_J1, _ = model_UPGA_J1.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
@@ -199,7 +205,7 @@ if run_program == 1:
         print('Running unfolded PGA with J = 4...')
         # Create new model and load states
         model_UPGA_J4 = PGA_Unfold_JX(step_size_UPGA_J4)
-        model_UPGA_J4.load_state_dict(torch.load(directory_model + f'UPGA_J4.pth', map_location=device))
+        model_UPGA_J4.load_state_dict(torch.load(load_model_file('UPGA_J4'), map_location=device))
         register_step_size('UPGA (J=4)', model_UPGA_J4.step_size)
         sum_rate_UPGA_J4, crb_UPGA_J4, F_UPGA_J4, W_UPGA_J4, _ = model_UPGA_J4.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
                                                                                              snr,
@@ -212,7 +218,7 @@ if run_program == 1:
         print('Running unfolded PGA with J = 5...')
         # Create new model and load states
         model_UPGA_J5 = PGA_Unfold_JX(step_size_UPGA_J5)
-        model_UPGA_J5.load_state_dict(torch.load(model_file_name_UPGA_J5, map_location=device))
+        model_UPGA_J5.load_state_dict(torch.load(load_model_file('UPGA_J5'), map_location=device))
         register_step_size('UPGA (J=5)', model_UPGA_J5.step_size)
 
         sum_rate_UPGA_J5, crb_UPGA_J5, F_UPGA_J5, W_UPGA_J5, _ = model_UPGA_J5.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
@@ -226,7 +232,7 @@ if run_program == 1:
         print('Running unfolded PGA with J = 6...')
         # Create new model and load states
         model_UPGA_J6 = PGA_Unfold_JX(step_size_UPGA_J6)
-        model_UPGA_J6.load_state_dict(torch.load(directory_model + f'UPGA_J6.pth', map_location=device))
+        model_UPGA_J6.load_state_dict(torch.load(load_model_file('UPGA_J6'), map_location=device))
         register_step_size('UPGA (J=6)', model_UPGA_J6.step_size)
         sum_rate_UPGA_J6, crb_UPGA_J6, F_UPGA_J6, W_UPGA_J6, _ = model_UPGA_J6.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
                                                                                                 snr,
@@ -240,7 +246,7 @@ if run_program == 1:
         print('Running unfolded PGA with J = 10...')
         # Create new model and load states
         model_UPGA_J10 = PGA_Unfold_JX(step_size_UPGA_J10)
-        model_UPGA_J10.load_state_dict(torch.load(model_file_name_UPGA_J10, map_location=device))
+        model_UPGA_J10.load_state_dict(torch.load(load_model_file('UPGA_J10'), map_location=device))
         register_step_size('UPGA (J=10)', model_UPGA_J10.step_size)
 
         sum_rate_UPGA_J10, crb_UPGA_J10, F_UPGA_J10, W_UPGA_J10, _ = model_UPGA_J10.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
@@ -256,7 +262,7 @@ if run_program == 1:
         print('Running unfolded PGA with J = 20...')
         # Create new model and load states
         model_UPGA_J20 = PGA_Unfold_JX(step_size_UPGA_J20)
-        model_UPGA_J20.load_state_dict(torch.load(model_file_name_UPGA_J20, map_location=device))
+        model_UPGA_J20.load_state_dict(torch.load(load_model_file('UPGA_J20'), map_location=device))
         register_step_size('UPGA (J=20)', model_UPGA_J20.step_size)
 
         sum_rate_UPGA_J20, crb_UPGA_J20, F_UPGA_J20, W_UPGA_J20, _ = model_UPGA_J20.execute_PGA(H_test, xi_0, theta_desire, R_N_inv, snr,
@@ -269,7 +275,7 @@ if run_program == 1:
     if run_UPGA_J5_decay == 1:
         print('Running unfolded PGA with decaying J (max J=5)...')
         model_UPGA_J5_decay = PGA_Unfold_JX_decay(step_size_UPGA_J5)
-        model_UPGA_J5_decay.load_state_dict(torch.load(model_file_name_UPGA_J5_decay, map_location=device))
+        model_UPGA_J5_decay.load_state_dict(torch.load(load_model_file('UPGA_J5_decay'), map_location=device))
         register_step_size('UPGA (J=5, decay)', model_UPGA_J5_decay.step_size)
 
         sum_rate_UPGA_J5_decay, crb_UPGA_J5_decay, F_UPGA_J5_decay, W_UPGA_J5_decay, _ = model_UPGA_J5_decay.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
@@ -286,7 +292,7 @@ if run_program == 1:
     if run_UPGA_J10_decay == 1:
         print('Running unfolded PGA with decaying J...')
         model_UPGA_J10_decay = PGA_Unfold_JX_decay(step_size_UPGA_J10_decay)
-        model_UPGA_J10_decay.load_state_dict(torch.load(model_file_name_UPGA_J10_decay, map_location=device))
+        model_UPGA_J10_decay.load_state_dict(torch.load(load_model_file('UPGA_J10_decay'), map_location=device))
         register_step_size('UPGA (J=10, decay)', model_UPGA_J10_decay.step_size)
 
         sum_rate_UPGA_J10_decay, crb_UPGA_J10_decay, F_UPGA_J10_decay, W_UPGA_J10_decay, _ = model_UPGA_J10_decay.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
@@ -303,7 +309,7 @@ if run_program == 1:
     if run_UPGA_J20_decay == 1:
         print('Running unfolded PGA with decaying J (max J=20)...')
         model_UPGA_J20_decay = PGA_Unfold_JX_decay(step_size_UPGA_J20_decay)
-        model_UPGA_J20_decay.load_state_dict(torch.load(model_file_name_UPGA_J20_decay, map_location=device))
+        model_UPGA_J20_decay.load_state_dict(torch.load(load_model_file('UPGA_J20_decay'), map_location=device))
         register_step_size('UPGA (J=20, decay)', model_UPGA_J20_decay.step_size)
 
         sum_rate_UPGA_J20_decay, crb_UPGA_J20_decay, F_UPGA_J20_decay, W_UPGA_J20_decay, _ = model_UPGA_J20_decay.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
@@ -360,7 +366,7 @@ if run_program == 1:
     if run_UPGA_J5_SC == 1:
         print('Running sub-connected unfolded PGA with J = 5...')
         model_UPGA_J5_SC = PGA_Unfold_Sub_Connected_JX(step_size_UPGA_J5_SC)
-        model_UPGA_J5_SC.load_state_dict(torch.load(model_file_name_UPGA_J5_SC, map_location=device))
+        model_UPGA_J5_SC.load_state_dict(torch.load(load_model_file('UPGA_J5_SC'), map_location=device))
         register_step_size('UPGA (J=5, sub-connected)', model_UPGA_J5_SC.step_size)
 
         sum_rate_UPGA_J5_SC, crb_UPGA_J5_SC, F_UPGA_J5_SC, W_UPGA_J5_SC, _ = model_UPGA_J5_SC.execute_PGA(
@@ -372,7 +378,7 @@ if run_program == 1:
     if run_UPGA_J10_SC == 1:
         print('Running sub-connected unfolded PGA with J = 10...')
         model_UPGA_J10_SC = PGA_Unfold_Sub_Connected_JX(step_size_UPGA_J10_SC)
-        model_UPGA_J10_SC.load_state_dict(torch.load(model_file_name_UPGA_J10_SC, map_location=device))
+        model_UPGA_J10_SC.load_state_dict(torch.load(load_model_file('UPGA_J10_SC'), map_location=device))
         register_step_size('UPGA (J=10, sub-connected)', model_UPGA_J10_SC.step_size)
 
         sum_rate_UPGA_J10_SC, crb_UPGA_J10_SC, F_UPGA_J10_SC, W_UPGA_J10_SC, _ = model_UPGA_J10_SC.execute_PGA(
@@ -384,7 +390,7 @@ if run_program == 1:
     if run_UPGA_J_GradReuse == 1:
         print('Running unfolded PGA with gradient reuse (J = 5)...')
         model_UPGA_J_GradReuse = PGA_Unfold_J_GradReuse(step_size_UPGA_J5)
-        model_UPGA_J_GradReuse.load_state_dict(torch.load(model_file_name_UPGA_J_GradReuse, map_location=device))
+        model_UPGA_J_GradReuse.load_state_dict(torch.load(load_model_file('UPGA_J_GradReuse'), map_location=device))
         register_step_size('UPGA (J=5, GradReuse)', model_UPGA_J_GradReuse.step_size)
 
         sum_rate_UPGA_J_GradReuse, crb_UPGA_J_GradReuse, F_UPGA_J_GradReuse, W_UPGA_J_GradReuse, _ = model_UPGA_J_GradReuse.execute_PGA(
@@ -396,7 +402,7 @@ if run_program == 1:
     if run_UPGA_J_GradReuse_SC == 1:
         print('Running sub-connected unfolded PGA with gradient reuse (J = 5)...')
         model_UPGA_J_GradReuse_SC = PGA_Unfold_J_GradReuse_SC(step_size_UPGA_J_GradReuse_SC)
-        model_UPGA_J_GradReuse_SC.load_state_dict(torch.load(model_file_name_UPGA_J_GradReuse_SC, map_location=device))
+        model_UPGA_J_GradReuse_SC.load_state_dict(torch.load(load_model_file('UPGA_J_GradReuse_SC'), map_location=device))
         register_step_size('UPGA (J=5, GradReuse, sub-connected)', model_UPGA_J_GradReuse_SC.step_size)
 
         sum_rate_UPGA_J_GradReuse_SC, crb_UPGA_J_GradReuse_SC, F_UPGA_J_GradReuse_SC, W_UPGA_J_GradReuse_SC, _ = model_UPGA_J_GradReuse_SC.execute_PGA(
@@ -404,6 +410,65 @@ if run_program == 1:
         )
         rate_iter_UPGA_J_GradReuse_SC = sum_rate_UPGA_J_GradReuse_SC.squeeze().cpu().numpy()
         crb_iter_UPGA_J_GradReuse_SC = crb_UPGA_J_GradReuse_SC.squeeze().cpu().numpy()
+
+    init_method_specs = [
+        ('run_init_random', 'conv', ':d', 'gray', label_init_random),
+        ('run_init_svd', 'svd', '--o', 'blue', label_init_svd),
+        ('run_init_prop', 'prop', '-.x', 'green', label_init_prop),
+        ('run_init_isac_eigen', 'isac_eigen', '-s', 'red', label_init_isac_eigen),
+    ]
+    init_backend_specs = [
+        ('run_conv_PGA', PGA_Unfold_JX, step_size_UPGA_J1, n_iter_inner_J1, None, Conv_PGA_J1),
+        ('run_conv_PGA_J5', PGA_Unfold_JX, step_size_UPGA_J5, n_iter_inner_J5, None, Conv_PGA_J5),
+        ('run_conv_PGA_J10', PGA_Unfold_JX, step_size_UPGA_J10, n_iter_inner_J10, None, Conv_PGA_J10),
+        ('run_conv_PGA_J20', PGA_Unfold_JX, step_size_UPGA_J20, n_iter_inner_J20, None, label_conv_PGA_J20),
+        ('run_UPGA_J1', PGA_Unfold_JX, step_size_UPGA_J1, n_iter_inner_J1, 'UPGA_J1', label_UPGA_J1),
+        ('run_UPGA_J4', PGA_Unfold_JX, step_size_UPGA_J4, n_iter_inner_J4, 'UPGA_J4', label_UPGA_J4),
+        ('run_UPGA_J5', PGA_Unfold_JX, step_size_UPGA_J5, n_iter_inner_J5, 'UPGA_J5', label_UPGA_J5),
+        ('run_UPGA_J6', PGA_Unfold_JX, step_size_UPGA_J6, n_iter_inner_J6, 'UPGA_J6', label_UPGA_J6),
+        ('run_UPGA_J10', PGA_Unfold_JX, step_size_UPGA_J10, n_iter_inner_J10, 'UPGA_J10', label_UPGA_J10),
+        ('run_UPGA_J20', PGA_Unfold_JX, step_size_UPGA_J20, n_iter_inner_J20, 'UPGA_J20', label_UPGA_J20),
+        ('run_UPGA_J5_decay', PGA_Unfold_JX_decay, step_size_UPGA_J5, n_iter_inner_J5, 'UPGA_J5_decay', label_UPGA_J5_decay),
+        ('run_UPGA_J10_decay', PGA_Unfold_JX_decay, step_size_UPGA_J10_decay, n_iter_inner_J10, 'UPGA_J10_decay', label_UPGA_J10_decay),
+        ('run_UPGA_J20_decay', PGA_Unfold_JX_decay, step_size_UPGA_J20_decay, n_iter_inner_J20, 'UPGA_J20_decay', label_UPGA_J20_decay),
+        ('run_PGA_Conv_J5_line_search', PGA_Conv_line_search, step_size_UPGA_J5, n_iter_inner_J5, None, label_PGA_Conv_J5_LS),
+        ('run_PGA_Conv_J10_line_search', PGA_Conv_line_search, step_size_UPGA_J10, n_iter_inner_J10, None, label_PGA_Conv_J10_LS),
+        ('run_UPGA_J_GradReuse', PGA_Unfold_J_GradReuse, step_size_UPGA_J5, n_iter_inner_J5, 'UPGA_J_GradReuse', label_UPGA_J_GradReuse),
+        ('run_UPGA_J5_SC', PGA_Unfold_Sub_Connected_JX, step_size_UPGA_J5_SC, n_iter_inner_J5, 'UPGA_J5_SC', label_UPGA_J5_SC),
+        ('run_UPGA_J10_SC', PGA_Unfold_Sub_Connected_JX, step_size_UPGA_J10_SC, n_iter_inner_J10, 'UPGA_J10_SC', label_UPGA_J10_SC),
+        ('run_UPGA_J_GradReuse_SC', PGA_Unfold_J_GradReuse_SC, step_size_UPGA_J_GradReuse_SC, n_iter_inner_J5, 'UPGA_J_GradReuse_SC', label_UPGA_J_GradReuse_SC),
+        ('run_PGA_Conv_J5_LS_SC', PGA_Conv_line_search_sub_connected, step_size_UPGA_J5, n_iter_inner_J5, None, label_PGA_Conv_J5_LS_SC),
+        ('run_PGA_Conv_J10_LS_SC', PGA_Conv_line_search_sub_connected, step_size_UPGA_J10, n_iter_inner_J10, None, label_PGA_Conv_J10_LS_SC),
+    ]
+    selected_inits = [spec for spec in init_method_specs if globals()[spec[0]] == 1]
+    selected_backends = [spec for spec in init_backend_specs if globals()[spec[0]] == 1]
+    init_compare_curves = []
+    if selected_inits and selected_backends:
+        print('Comparing analog initializers on enabled CONSIDER SCHEMES...')
+        for flag, model_cls, step_size, n_inner, stem, scheme_label in selected_backends:
+            for init_flag, method, style, color, init_label in selected_inits:
+                model_init_compare = model_cls(step_size)
+                if stem is not None:
+                    pth = load_model_file(stem, method)
+                    print(f'  {scheme_label} | init = {method} | {pth}')
+                    model_init_compare.load_state_dict(torch.load(pth, map_location=device))
+                else:
+                    print(f'  {scheme_label} | init = {method} | untrained steps')
+                register_step_size(f'{scheme_label} ({method})', model_init_compare.step_size)
+                with torch.no_grad():
+                    rate_init, F_init, W_init = initialize(H_test, snr, initial_normalization, scheme=method)
+                    A_dot_init = compute_A_dot(H_test, F_init, W_init, xi_0, theta_desire, R_N_inv, snr)
+                    rate0 = rate_init.mean().detach().cpu().numpy()
+                    crb0 = get_crb_fe(H_test, F_init, W_init, xi_0, A_dot_init, R_N_inv, snr).mean().detach().cpu().numpy()
+                    rates, crbs, *_ = model_init_compare.execute_PGA(
+                        H_test, xi_0, theta_desire, R_N_inv, snr, n_iter_outer, n_inner, init_method=method
+                    )
+                rate_curve = np.concatenate([np.atleast_1d(rate0), rates.squeeze().cpu().numpy()])
+                crb_curve = np.concatenate([np.atleast_1d(crb0), crbs.squeeze().cpu().numpy()])
+                obj_curve = OMEGA * rate_curve + crb_curve
+                globals()['obj_iter_init_' + method] = obj_curve
+                curve_label = init_label if len(selected_backends) == 1 else f'{init_label}, {scheme_label}'
+                init_compare_curves.append((obj_curve, style, color, curve_label))
 
 if plot_figure == 1:
 
@@ -611,6 +676,29 @@ if plot_figure == 1:
     safe_legend(loc='upper center', bbox_to_anchor=(0.5, -0.12), fontsize=11, labelspacing=0.1, ncol=2, frameon=False, columnspacing=0.6,)
     plt.savefig(directory_result + 'objective_vs_iter_' + str(Nt) + '_' + str(OMEGA) + '.png',bbox_inches='tight',pad_inches=0.02)
     plt.savefig(directory_result + 'objective_vs_iter_' + str(Nt) + '_' + str(OMEGA) + '.eps',bbox_inches='tight',pad_inches=0.02)
+
+    if not init_compare_curves:
+        for init_flag, method, style, color, init_label in [
+            ('run_init_random', 'conv', ':d', 'gray', label_init_random),
+            ('run_init_svd', 'svd', '--o', 'blue', label_init_svd),
+            ('run_init_prop', 'prop', '-.x', 'green', label_init_prop),
+            ('run_init_isac_eigen', 'isac_eigen', '-s', 'red', label_init_isac_eigen),
+        ]:
+            obj_name = 'obj_iter_init_' + method
+            if globals().get(init_flag) == 1 and obj_name in globals():
+                init_compare_curves.append((globals()[obj_name], style, color, init_label))
+
+    if init_compare_curves:
+        plt.figure(figsize=(8, 5.2))
+        iter_init_x = np.arange(n_iter_outer + 1)
+        for obj_curve, style, color, curve_label in init_compare_curves:
+            plt.plot(iter_init_x, obj_curve, style, markevery=5, color=color, linewidth=3, markersize=7, label=curve_label)
+        plt.xlabel(r'Number of iterations/layers $(I)$', fontsize=14)
+        plt.ylabel(r'$\omega R + \log(\text{CRLB}^{-1})$', fontsize=14)
+        plt.grid()
+        safe_legend(loc='upper center', bbox_to_anchor=(0.5, -0.12), fontsize=11, labelspacing=0.1, ncol=2, frameon=False, columnspacing=0.6,)
+        plt.savefig(directory_result + 'objective_vs_iter_init_' + str(Nt) + '_' + str(OMEGA) + '.png', bbox_inches='tight', pad_inches=0.02)
+        plt.savefig(directory_result + 'objective_vs_iter_init_' + str(Nt) + '_' + str(OMEGA) + '.eps', bbox_inches='tight', pad_inches=0.02)
 
 
 

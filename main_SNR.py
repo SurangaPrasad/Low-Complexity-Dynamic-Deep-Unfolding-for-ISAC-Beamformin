@@ -65,33 +65,33 @@ if run_program == 1:
     # Create new model and load states for unfolded PGA with different J values
     if run_UPGA_J1 == 1:
         model_UPGA_J1 = PGA_Unfold_JX(step_size_UPGA_J1)
-        model_UPGA_J1.load_state_dict(torch.load(model_file_name_UPGA_J1, map_location=device))
+        model_UPGA_J1.load_state_dict(torch.load(load_model_file('UPGA_J1'), map_location=device))
     if run_UPGA_J4 == 1:
         model_UPGA_J4 = PGA_Unfold_JX(step_size_UPGA_J4)
-        model_UPGA_J4.load_state_dict(torch.load(directory_model + 'UPGA_J4.pth', map_location=device))
+        model_UPGA_J4.load_state_dict(torch.load(load_model_file('UPGA_J4'), map_location=device))
     if run_UPGA_J5 == 1:
         model_UPGA_J5 = PGA_Unfold_JX(step_size_UPGA_J5)
-        model_UPGA_J5.load_state_dict(torch.load(model_file_name_UPGA_J5, map_location=device))
+        model_UPGA_J5.load_state_dict(torch.load(load_model_file('UPGA_J5'), map_location=device))
     if run_UPGA_J6 == 1:
         model_UPGA_J6 = PGA_Unfold_JX(step_size_UPGA_J6)
-        model_UPGA_J6.load_state_dict(torch.load(directory_model + 'UPGA_J6.pth', map_location=device))
+        model_UPGA_J6.load_state_dict(torch.load(load_model_file('UPGA_J6'), map_location=device))
     if run_UPGA_J10 == 1:
         model_UPGA_J10 = PGA_Unfold_JX(step_size_UPGA_J10)
-        model_UPGA_J10.load_state_dict(torch.load(model_file_name_UPGA_J10, map_location=device))
+        model_UPGA_J10.load_state_dict(torch.load(load_model_file('UPGA_J10'), map_location=device))
     if run_UPGA_J20 == 1:
         model_UPGA_J20 = PGA_Unfold_JX(step_size_UPGA_J20)
-        model_UPGA_J20.load_state_dict(torch.load(model_file_name_UPGA_J20, map_location=device))
+        model_UPGA_J20.load_state_dict(torch.load(load_model_file('UPGA_J20'), map_location=device))
 
     # Create new model and load states for unfolded PGA with decay
     if run_UPGA_J5_decay == 1:
         model_UPGA_J5_decay = PGA_Unfold_JX_decay(step_size_UPGA_J5_decay)
-        model_UPGA_J5_decay.load_state_dict(torch.load(model_file_name_UPGA_J5_decay, map_location=device))
+        model_UPGA_J5_decay.load_state_dict(torch.load(load_model_file('UPGA_J5_decay'), map_location=device))
     if run_UPGA_J10_decay == 1:
         model_UPGA_J10_decay = PGA_Unfold_JX_decay(step_size_UPGA_J10_decay)
-        model_UPGA_J10_decay.load_state_dict(torch.load(model_file_name_UPGA_J10_decay, map_location=device))
+        model_UPGA_J10_decay.load_state_dict(torch.load(load_model_file('UPGA_J10_decay'), map_location=device))
     if run_UPGA_J20_decay == 1:
         model_UPGA_J20_decay = PGA_Unfold_JX_decay(step_size_UPGA_J20_decay)
-        model_UPGA_J20_decay.load_state_dict(torch.load(model_file_name_UPGA_J20_decay, map_location=device))
+        model_UPGA_J20_decay.load_state_dict(torch.load(load_model_file('UPGA_J20_decay'), map_location=device))
 
     rate_conv_PGA = np.zeros([len(snr_dB_list), ], dtype=float)
     rate_conv_PGA_J5 = np.zeros([len(snr_dB_list), ], dtype=float)
