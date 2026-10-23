@@ -13,4 +13,6 @@ model/
 .DS_Store
 
 *.png
-*.epsjournal_paper/
+*.eps
+journal_paper/
+.cursor/
