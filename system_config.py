@@ -13,18 +13,18 @@ print(f"Using device: {device}")
 #/////////////////////////// CONSIONDER SCHEMES /////////////////////////////////////////////////////////
 run_conv_PGA = 0           # Conventional PGA without unfolding
 run_conv_PGA_J5 = 1        # Conventional PGA with setting J = 5
-run_conv_PGA_J10 = 0       # Conventional PGA with setting J = 10
+run_conv_PGA_J10 = 1       # Conventional PGA with setting J = 10
 run_conv_PGA_J20 = 0
 run_conv_PGA_J10_PC = 0    # Conventional PGA with J = 10 and partial coupling (PC) 
 run_UPGA_J1 = 0            # Unfolded PGA without any modification (J = 1)
-run_UPGA_J4 = 0
-run_UPGA_J5 = 0            # Unfolded PGA with setting J = 5
-run_UPGA_J6 = 0            # Unfolded PGA with setting J = 6 (for ablation on inner iteration number)
-run_UPGA_J10 = 0           # Unfolded PGA with setting J = 10
+run_UPGA_J4 = 1
+run_UPGA_J5 = 1            # Unfolded PGA with setting J = 5
+run_UPGA_J6 = 1            # Unfolded PGA with setting J = 6 (for ablation on inner iteration number)
+run_UPGA_J10 = 1           # Unfolded PGA with setting J = 10
 run_UPGA_J20 = 0           # Unfolded PGA with setting J = 20
 
-run_UPGA_J5_decay = 0        # Unfolded PGA with decaying inner iterations (J_max=5 → 1)
-run_UPGA_J10_decay = 0       # Unfolded PGA with decaying inner iterations (J_max=10 → 1)
+run_UPGA_J5_decay = 1        # Unfolded PGA with decaying inner iterations (J_max=5 → 1)
+run_UPGA_J10_decay = 1       # Unfolded PGA with decaying inner iterations (J_max=10 → 1)
 run_UPGA_J20_decay = 0       # Unfolded PGA with decaying inner iterations (J_max=20 → 1)
 
 
@@ -62,7 +62,7 @@ snr_dB_list = np.array([0, 2, 4, 6, 8, 10, 12], dtype='float64') # SNR for showi
 init_W = 'ZF' # initialization scheme
 initial_normalization = 0  # normalization for initialization
 data_source = 'matlab'  # data generate by matlab or python
-init_scheme = 'prop'  # ISAC-eigen analog init (comm+sensing Gramian)
+init_scheme = 'svd'  # ISAC-eigen analog init (comm+sensing Gramian)
 
 
 system_config = str(Nt) + "TX_" + str(M) + "UE_" + str(Nrf) + "RF"
@@ -179,10 +179,22 @@ def model_file(stem, scheme=None):
     return directory_model + f'{stem}_{scheme}.pth'
 
 def load_model_file(stem, scheme=None):
-    path = model_file(stem, scheme)
-    if os.path.exists(path):
-        return path
-    return directory_model + f'{stem}.pth'
+    """Resolve a checkpoint path for ``stem``.
+
+    Prefer ``{stem}_{scheme}.pth`` (scheme defaults to ``init_scheme``), then
+    ``{stem}_{init_scheme}.pth``, then ``{stem}.pth``. Callers should still
+    check ``os.path.exists`` if a missing file must be skipped.
+    """
+    if scheme is None:
+        scheme = init_scheme
+    candidates = [model_file(stem, scheme)]
+    if scheme != init_scheme:
+        candidates.append(model_file(stem, init_scheme))
+    candidates.append(directory_model + f'{stem}.pth')
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return candidates[0]
 
 model_file_name_UPGA_J1 = model_file('UPGA_J1')
 model_file_name_UPGA_J4 = model_file('UPGA_J4')

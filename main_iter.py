@@ -450,7 +450,14 @@ if run_program == 1:
                 model_init_compare = model_cls(step_size)
                 if stem is not None:
                     pth = load_model_file(stem, method)
-                    print(f'  {scheme_label} | init = {method} | {pth}')
+                    if not os.path.exists(pth):
+                        print(f'  SKIP {scheme_label} | init = {method} | missing checkpoint {pth}')
+                        continue
+                    note = ''
+                    expected = model_file(stem, method)
+                    if pth != expected:
+                        note = f' (fallback; no {os.path.basename(expected)})'
+                    print(f'  {scheme_label} | init = {method} | {pth}{note}')
                     model_init_compare.load_state_dict(torch.load(pth, map_location=device))
                 else:
                     print(f'  {scheme_label} | init = {method} | untrained steps')
