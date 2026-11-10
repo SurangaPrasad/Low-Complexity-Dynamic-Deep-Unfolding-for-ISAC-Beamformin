@@ -23,13 +23,25 @@ run_UPGA_J6 = 0            # Unfolded PGA with setting J = 6 (for ablation on in
 run_UPGA_J10 = 0           # Unfolded PGA with setting J = 10
 run_UPGA_J20 = 0           # Unfolded PGA with setting J = 20
 
-run_UPGA_J5_decay = 0        # Unfolded PGA with decaying inner iterations (J_max=5 → 1)
+run_UPGA_J5_decay = 1        # Unfolded PGA with decaying inner iterations (J_max=5 → 1)
 run_UPGA_J10_decay = 0       # Unfolded PGA with decaying inner iterations (J_max=10 → 1)
 run_UPGA_J20_decay = 0       # Unfolded PGA with decaying inner iterations (J_max=20 → 1)
 
 
-run_PGA_Conv_J5_line_search = 1      # Unfolded PGA with line search (J = 5)
+run_PGA_Conv_J5_line_search = 0      # Unfolded PGA with line search (J = 5)
 run_PGA_Conv_J10_line_search = 0      # Unfolded PGA with line search (J = 10)
+run_PGA_Conv_J5_LS_SC = 0            # Sub-connected conv. PGA with line search (J = 5)
+run_PGA_Conv_J10_LS_SC = 0           # Sub-connected conv. PGA with line search (J = 10)
+
+run_UPGA_J5_SC = 0                   # Sub-connected UPGA (fixed-block S init, J = 5)
+run_UPGA_J10_SC = 0                  # Sub-connected UPGA (fixed-block S init, J = 10)
+run_UPGA_J_GradReuse = 0             # Unfolded PGA with lazy gradient reuse (J = 5)
+run_UPGA_J_GradReuse_SC = 0          # Sub-connected UPGA with lazy gradient reuse (J = 5)
+
+run_init_random = 1                  # Random unit-modulus analog init
+run_init_svd = 1                     # SVD of H analog init
+run_init_prop = 1                    # Proposed (PE-AltMin analog) init
+run_init_isac_eigen = 1              # ISAC-eigen analog init
 
 
 # ////////////////////////////////////////////// SYSTEM PARAMS //////////////////////////////////////////////
@@ -50,7 +62,7 @@ snr_dB_list = np.array([0, 2, 4, 6, 8, 10, 12], dtype='float64') # SNR for showi
 init_W = 'ZF' # initialization scheme
 initial_normalization = 0  # normalization for initialization
 data_source = 'matlab'  # data generate by matlab or python
-init_scheme = 'svd'  # proposed initialization for best convergence
+init_scheme = 'prop'  # ISAC-eigen analog init (comm+sensing Gramian)
 
 
 system_config = str(Nt) + "TX_" + str(M) + "UE_" + str(Nrf) + "RF"
@@ -61,7 +73,7 @@ OMEGA = 0.25
 
 # ////////////////////////////////////////////// MODEL PARAMS //////////////////////////////////////////////
 train_size = 112 * 2    # size of training set
-test_size = 10     # size of testing set
+test_size = 20     # size of testing set
 batch_size = len(snr_dB_list) * 4
 n_epoch = 20         # number of training epochs
 learning_rate = 0.0005 # learning 
@@ -113,6 +125,8 @@ armijo_beta_F = 0.2
 armijo_beta_W = 0.2
 armijo_initial_step_F = 0.1
 armijo_initial_step_W = 0.1
+armijo_initial_step_S = 0.1
+armijo_beta_S = 0.2
 armijo_min_step = 1e-8
 max_line_search = 10
 
@@ -132,6 +146,10 @@ step_size_UPGA_J5_decay = torch.full([n_iter_inner_J5, n_iter_outer, K + 1], ste
 step_size_UPGA_J10_decay = torch.full([n_iter_inner_J10, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
 step_size_UPGA_J20_decay = torch.full([n_iter_inner_J20, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
 # J_GradReuse uses the same shape as J10; gradient reuse logic is handled inside execute_PGA
+# Sub-connected UPGA: (J, I, 3) = (F, S, W) step sizes
+step_size_UPGA_J5_SC = torch.full([n_iter_inner_J5, n_iter_outer, 3], step_size_fixed, device=device, requires_grad=True)
+step_size_UPGA_J10_SC = torch.full([n_iter_inner_J10, n_iter_outer, 3], step_size_fixed, device=device, requires_grad=True)
+step_size_UPGA_J_GradReuse_SC = torch.full([n_iter_inner_J5, n_iter_outer, 3], step_size_fixed, device=device, requires_grad=True)
 
 
 directory_data = "./dataset/" + system_config + "/"
@@ -155,19 +173,35 @@ directory_model03 = "./model/" + system_config  + "/"
 if not os.path.exists(directory_model):
     os.makedirs(directory_model)
 
-model_file_name_UPGA_J1 = directory_model + 'UPGA_J1.pth'
-model_file_name_UPGA_J5 = directory_model + 'UPGA_J5.pth'
-model_file_name_UPGA_J10 = directory_model + 'UPGA_J10.pth'
-model_file_name_UPGA_J10_PRCDN = directory_model + 'UPGA_J10_PRCDN.pth'
-model_file_name_UPGA_J20 = directory_model + 'UPGA_J20.pth'
-model_file_name_UPGA_J10_PC = directory_model + 'UPGA_J10_PC.pth'
-model_file_name_UPGA_J5_decay = directory_model + 'UPGA_J5_decay.pth'
-model_file_name_UPGA_J10_decay = directory_model + 'UPGA_J10_decay.pth'
-model_file_name_UPGA_J20_decay = directory_model + 'UPGA_J20_decay.pth'
-model_file_name_UPGA_J_GradReuse = directory_model + 'UPGA_J_GradReuse.pth'
+def model_file(stem, scheme=None):
+    if scheme is None:
+        scheme = init_scheme
+    return directory_model + f'{stem}_{scheme}.pth'
+
+def load_model_file(stem, scheme=None):
+    path = model_file(stem, scheme)
+    if os.path.exists(path):
+        return path
+    return directory_model + f'{stem}.pth'
+
+model_file_name_UPGA_J1 = model_file('UPGA_J1')
+model_file_name_UPGA_J4 = model_file('UPGA_J4')
+model_file_name_UPGA_J5 = model_file('UPGA_J5')
+model_file_name_UPGA_J6 = model_file('UPGA_J6')
+model_file_name_UPGA_J10 = model_file('UPGA_J10')
+model_file_name_UPGA_J10_PRCDN = model_file('UPGA_J10_PRCDN')
+model_file_name_UPGA_J20 = model_file('UPGA_J20')
+model_file_name_UPGA_J10_PC = model_file('UPGA_J10_PC')
+model_file_name_UPGA_J5_decay = model_file('UPGA_J5_decay')
+model_file_name_UPGA_J10_decay = model_file('UPGA_J10_decay')
+model_file_name_UPGA_J20_decay = model_file('UPGA_J20_decay')
+model_file_name_UPGA_J_GradReuse = model_file('UPGA_J_GradReuse')
 model_file_name_UPGA_J10_PC_omega03 = directory_model03 + 'UPGA_J10_PC.pth'
 
-model_file_name_PGA_Conv_J10_LS = directory_model + 'PGA_Conv_J10_LS.pth'
+model_file_name_PGA_Conv_J10_LS = model_file('PGA_Conv_J10_LS')
+model_file_name_UPGA_J5_SC = model_file('UPGA_J5_SC')
+model_file_name_UPGA_J10_SC = model_file('UPGA_J10_SC')
+model_file_name_UPGA_J_GradReuse_SC = model_file('UPGA_J_GradReuse_SC')
 
 # To save result figures
 directory_result = "./sim_results/" + system_config + "/"
@@ -193,18 +227,41 @@ label_UPGA_J20 = r'Fixed-UPGA, $2400$ inner layers'
 label_UPGA_J10_PC = r'UPGA ' + '$(J = ' + str(n_iter_inner_J10) + ', PC)$'
 label_conv_PGA_J10_PC = 'Conventional PGA ' + '$(J = ' + str(n_iter_inner_J10) + ', PC)$'
 
-label_UPGA_J5_decay = r'Dynamic-UPGA, $421$ inner layers'
-label_UPGA_J10_decay = r'Dynamic-UPGA, $722$ inner layers'
-label_UPGA_J20_decay = r'Dynamic-UPGA, $20$ inner layers'
-label_UPGA_J_GradReuse = r'UPGA ' + r'$(J=' + str(n_iter_inner_J10) + r', \mathrm{GradReuse})$'
+def make_dynamic_upga_label(n_inner_layers):
+    """Build the Dynamic-UPGA legend from the measured total inner-layer count."""
+    return rf'Dynamic-UPGA, ${int(n_inner_layers)}$ inner layers'
+
+
+def total_inner_layers(inner_iter_history):
+    """Sum per-outer adaptive J values into a total inner-layer count."""
+    if inner_iter_history is None:
+        return 0
+    return int(np.sum(np.asarray(inner_iter_history, dtype=np.int64)))
+
+
+# Placeholders overwritten after a decay run from ``inner_iter_history``.
+label_UPGA_J5_decay = r'Dynamic-UPGA'
+label_UPGA_J10_decay = r'Dynamic-UPGA'
+label_UPGA_J20_decay = r'Dynamic-UPGA'
+label_UPGA_J_GradReuse = r'GradReuse-UPGA, $600$ inner layers'
 label_ZF = 'ZF (digital, comm. only)'
 label_SCA = 'SCA-ManOpt (converged)'
 label_PGA_Conv_J5_LS = r'Conv. PGA, $600$ inner iterations, line search'
 label_PGA_Conv_J10_LS = r'Conv. PGA, $1200$ inner iterations, line search'
+label_PGA_Conv_J5_LS_SC = r'Sub-connected conv. PGA, $600$ inner iters, line search'
+label_PGA_Conv_J10_LS_SC = r'Sub-connected conv. PGA, $1200$ inner iters, line search'
+label_UPGA_J5_SC = r'Sub-connected UPGA, $600$ inner layers'
+label_UPGA_J10_SC = r'Sub-connected UPGA, $1200$ inner layers'
+label_UPGA_J_GradReuse_SC = r'Sub-connected GradReuse-UPGA, $600$ inner layers'
 
 Conv_PGA_J1 = r'Conv. PGA, $120$ inner iterations'
 Conv_PGA_J5 = r'Conv. PGA, $600$ inner iterations'
 Conv_PGA_J10 = r'Conv. PGA, $1200$ inner iterations'
+
+label_init_random = r'Random'
+label_init_svd = r'SVD of $H$'
+label_init_prop = r'Proposed'
+label_init_isac_eigen = r'ISAC-eigen'
 
 
 #### Sensing angles for beampattern design

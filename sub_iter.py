@@ -36,7 +36,7 @@ if run_program == 1:
         print('Running unfolded PGA with J = 10...')
         # Create new model and load states
         model_UPGA_J10 = PGA_Unfold_J10(step_size_UPGA_J10)
-        model_UPGA_J10.load_state_dict(torch.load(model_file_name_UPGA_J10, map_location=device))
+        model_UPGA_J10.load_state_dict(torch.load(load_model_file('UPGA_J10'), map_location=device))
 
         sum_rate_UPGA_J10, tau_UPGA_J10, F_UPGA_J10, W_UPGA_J10 = model_UPGA_J10.execute_PGA(H_test, R,
                                                                                              snr,

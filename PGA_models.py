@@ -131,9 +131,9 @@ class PGA_Conv_line_search(nn.Module):
 
 
     # =========== Projection Gradient Ascent execution ===================
-    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True, init_method=None):
 
-        _, F, W = initialize(H, Pt, initial_normalization)
+        _, F, W = initialize(H, Pt, initial_normalization, scheme=init_method)
 
         B = len(H[0])
 
@@ -213,6 +213,137 @@ class PGA_Conv_line_search(nn.Module):
 
         return (rate_over_iters, crb_over_iters, F, W, A_dot)
 
+# ============================================== Conventional PGA with line search + sub-connected mask ==============================
+
+class PGA_Conv_line_search_sub_connected(nn.Module):
+    """Armijo line-search PGA with a learnable sub-connected mask.
+
+    Same F/W Armijo updates as ``PGA_Conv_line_search``. ``S`` starts as the
+    fixed block mask and is refined by a simplex-projected line search:
+
+        F_eff = F ⊙ S
+        grad_F = S ⊙ grad_F_eff
+        grad_S = 2 Re(conj(F) ⊙ grad_F_eff)
+    """
+
+    def __init__(self, step_size, n_antennas=None, n_rf_chains=None, mask=None):
+        super().__init__()
+        self.step_size = nn.Parameter(step_size)
+        n_ant = Nt if n_antennas is None else n_antennas
+        n_rf = Nrf if n_rf_chains is None else n_rf_chains
+        s0 = mask.float() if mask is not None else build_fixed_subconnected_mask(n_ant, n_rf)
+        self.register_buffer('fixed_s0', s0)
+
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True, init_method=None):
+
+        _, F, W = initialize(H, Pt, initial_normalization, scheme=init_method)
+        B = len(H[0])
+        S = self.fixed_s0.to(device=F.device, dtype=F.real.dtype)
+        S = S.view(*([1] * (F.dim() - 2)), S.shape[-2], S.shape[-1]).expand_as(F.real).clone()
+
+        rate_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
+        crb_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
+
+        def objective(F_eval, S_eval, W_eval, A_dot):
+            F_eff = F_eval * S_eval
+            rate = get_sum_rate(H, F_eff, W_eval, Pt, skip_unit_modulus=True)
+            log_inv_crb = get_crb_fe(H, F_eff, W_eval, xi_0, A_dot, R_N_inv, Pt, skip_unit_modulus=True).mean()
+            return WEIGHT_F_COM * rate + WEIGHT_F_CRB * log_inv_crb
+
+        def inner_fs_update(F, S, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt):
+            for jj in range(n_inner):
+                F_eff = F * S
+                grad_F_com = get_grad_F_com(H, F_eff, W)
+                grad_F_crb = get_grad_F_crb(F_eff, W, xi_0, A_dot, R_N_inv)
+                grad_F_eff = WEIGHT_F_COM * grad_F_com + WEIGHT_F_CRB * grad_F_crb
+                grad_F = S * grad_F_eff
+                current_objective = objective(F, S, W, A_dot)
+                step_F = armijo_initial_step_F
+
+                for ls in range(max_line_search):
+                    if step_F < armijo_min_step:
+                        break
+
+                    F_candidate = project_unit_modulus(F + step_F * grad_F)
+                    candidate_objective = objective(F_candidate, S, W, A_dot)
+                    directional_gain = torch.real(
+                        torch.sum(grad_F.conj() * (F_candidate - F), dim=(-2, -1)).mean()
+                    )
+
+                    if candidate_objective >= current_objective + armijo_c1 * step_F * directional_gain:
+                        F = F_candidate
+                        break
+
+                    step_F *= armijo_beta_F
+
+                F_eff = F * S
+                grad_F_com = get_grad_F_com(H, F_eff, W)
+                grad_F_crb = get_grad_F_crb(F_eff, W, xi_0, A_dot, R_N_inv)
+                grad_F_eff = WEIGHT_F_COM * grad_F_com + WEIGHT_F_CRB * grad_F_crb
+                grad_S = 2.0 * torch.real(torch.conj(F) * grad_F_eff)
+                current_objective = objective(F, S, W, A_dot)
+                step_S = armijo_initial_step_S
+
+                for ls in range(max_line_search):
+                    if step_S < armijo_min_step:
+                        break
+
+                    S_candidate = project_to_simplex_rows(S + step_S * grad_S)
+                    candidate_objective = objective(F, S_candidate, W, A_dot)
+                    directional_gain = torch.sum(grad_S * (S_candidate - S), dim=(-2, -1)).mean()
+
+                    if candidate_objective >= current_objective + armijo_c1 * step_S * directional_gain:
+                        S = S_candidate
+                        break
+
+                    step_S *= armijo_beta_S
+
+            return F, S
+
+        for ii in range(n_iter_outer):
+            n_inner = min(n_iter_inner, self.step_size.shape[0])
+
+            A_dot = compute_A_dot(H, F * S, W, xi_0, theta_desire_batch, R_N_inv, Pt)
+
+            if track_metrics:
+                F, S = inner_fs_update(F, S, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt)
+            else:
+                F, S = checkpoint(inner_fs_update, F, S, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt, use_reentrant=False)
+
+            F_eff = F * S
+            grad_W_k_com = get_grad_W_com(H, F_eff, W)
+            grad_W_k_crb = get_grad_W_crb(F_eff, W, xi_0, A_dot, R_N_inv)
+            grad_W = WEIGHT_W_COM * grad_W_k_com + WEIGHT_W_CRB * grad_W_k_crb
+            current_objective = objective(F, S, W, A_dot)
+            step_W = armijo_initial_step_W
+
+            for ls in range(max_line_search):
+                if step_W < armijo_min_step:
+                    break
+
+                W_unnormalized = W + step_W * grad_W
+                _, W_candidate = normalize(F_eff, W_unnormalized, H, Pt, skip_unit_modulus=True)
+                candidate_objective = objective(F, S, W_candidate, A_dot)
+                directional_gain = torch.real(
+                    torch.sum(grad_W.conj() * (W_candidate - W), dim=(-2, -1)).mean()
+                )
+
+                if candidate_objective >= current_objective + armijo_c1 * step_W * directional_gain:
+                    W = W_candidate
+                    break
+
+                step_W *= armijo_beta_W
+
+            if track_metrics:
+                F_eff = F * S
+                rate_over_iters[ii, 0] = get_sum_rate(H, F_eff, W, Pt, skip_unit_modulus=True).detach()
+                crb_over_iters[ii, 0] = get_crb_fe(H, F_eff, W, xi_0, A_dot, R_N_inv, Pt, skip_unit_modulus=True).detach()
+
+        rate_over_iters = rate_over_iters.mean(dim=-1, keepdim=True)
+        crb_over_iters = crb_over_iters.mean(dim=-1, keepdim=True)
+
+        return (rate_over_iters, crb_over_iters, F * S, W, A_dot)
+
 # ============================================== Proposed PGA model=============================
 
 class PGA_Unfold_JX(nn.Module):
@@ -226,9 +357,9 @@ class PGA_Unfold_JX(nn.Module):
         self.alpha = alpha
 
     # =========== Projection Gradient Ascent execution ===================
-    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True):
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True, init_method=None):
 
-        rate_init, F, W = initialize(H, Pt, initial_normalization)
+        rate_init, F, W = initialize(H, Pt, initial_normalization, scheme=init_method)
 
         B = len(H[0])
 
@@ -237,6 +368,7 @@ class PGA_Unfold_JX(nn.Module):
         F_over_iters = []
         W_over_iters = []
         A_dot_over_iters = []
+        self.residual_history = []
 
         def inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt):
             for jj in range(n_inner):
@@ -244,6 +376,10 @@ class PGA_Unfold_JX(nn.Module):
                 grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
                 if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
                     print('Error NaN gradients!!!!!!!!!!!!!!!')
+                if track_metrics and jj == 0:
+                    grad_F_J = WEIGHT_F_COM * grad_F_com + WEIGHT_F_CRB * grad_F_crb
+                    residual = torch.linalg.matrix_norm(grad_F_J, ord='fro').mean()
+                    self.residual_history.append(residual.detach().item())
                 delta_F_com = self.step_size[jj][ii][0] * grad_F_com
                 delta_F_crb = self.step_size[jj][ii][0] * grad_F_crb
                 F = ( F + delta_F_com * WEIGHT_F_COM + delta_F_crb * WEIGHT_F_CRB )
@@ -287,95 +423,548 @@ class PGA_Unfold_JX(nn.Module):
         A_dot_over_iters = torch.stack(A_dot_over_iters, dim=0)
         return (rate_over_iters, crb_over_iters, F_over_iters, W_over_iters, A_dot_over_iters)
 
-# ============================================== Unfolded PGA with decaying inner iterations ==============================
-class PGA_Unfold_JX_decay(nn.Module):
 
-    def __init__(self, step_size, alpha=0.04, eps=1e-12, J_min=2):
+
+class PGA_Unfold_J_GradReuse(nn.Module):
+    """Same as ``PGA_Unfold_JX``, plus lazy gradient reuse.
+
+    F inner steps (per outer iteration ``ii``):
+      jj = 0  : always compute a fresh gradient (same as ``PGA_Unfold_JX``).
+      jj >= 1 : propose ``F_trial`` with the stored gradient; accept if the
+                combined objective increases, otherwise recompute and step.
+
+    W outer steps:
+      ii = 0  : always compute a fresh gradient (same as ``PGA_Unfold_JX``).
+      ii >= 1 : propose ``W_trial`` with the stored W gradient; accept if the
+                objective increases, otherwise recompute and step.
+    """
+
+    def __init__(self, step_size, alpha=0.01):
         super().__init__()
-
-        self.step_size = nn.Parameter(step_size)  # parameters = (mu, lambda)
-        self.eps = eps
-        self.J_min = J_min  # minimum inner iterations to ensure some optimization progress
-
-        # Adaptive scheduling hyperparameter
+        self.step_size = nn.Parameter(step_size)
+        self.inner_iter_history = []
         self.alpha = alpha
+        self.grad_recalc_count = 0
+        self.W_grad_recalc_count = 0
 
-    # =========== Projection Gradient Ascent execution ===================
-    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt,n_iter_outer, n_iter_inner, track_metrics=True):
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True, init_method=None):
 
-        rate_init, F, W = initialize(H, Pt, initial_normalization)
+        rate_init, F, W = initialize(H, Pt, initial_normalization, scheme=init_method)
 
         B = len(H[0])
+
         rate_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
         crb_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
         F_over_iters = []
         W_over_iters = []
         A_dot_over_iters = []
 
-        def _n_inner_from_grad(grad_F_J):
-            J_max = self.step_size.shape[0]
-            J_min = min(self.J_min, J_max)
-            Nt = F.shape[-2]
-            Nrf = F.shape[-1]
-            g_i = torch.linalg.norm(grad_F_J.reshape(grad_F_J.shape[0], -1), dim=1) / (torch.sqrt(torch.tensor(Nt * Nrf, device=grad_F_J.device, dtype=grad_F_J.real.dtype)) + self.eps)
-            g_i = torch.mean(g_i)
-            r_i = g_i / (g_i + self.alpha)
-            n_inner = int(torch.ceil(J_max * r_i).item())
-            n_inner = max(J_min, min(J_max, n_inner))
-            return n_inner
+        grad_recalc = 0
+        W_grad_recalc = 0
+        prev_grad_W_com = None
+        prev_grad_W_crb = None
+
+        def combined_obj(F_eval, W_eval, A_dot, weight_com, weight_crb):
+            rate = get_sum_rate(H, F_eval, W_eval, Pt)
+            crb = get_crb_fe(H, F_eval, W_eval, xi_0, A_dot, R_N_inv, Pt)
+            return (rate * weight_com + crb.mean() * weight_crb).item()
 
         def inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt):
+            nonlocal grad_recalc
+            prev_grad_F_com = None
+            prev_grad_F_crb = None
+            prev_obj = None
+
+            for jj in range(n_inner):
+                if jj == 0:
+                    grad_F_com = get_grad_F_com(H, F, W)
+                    grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
+                    if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
+                        print('Error NaN gradients!!!!!!!!!!!!!!!')
+                else:
+                    # ---- reuse attempt (additional logic vs PGA_Unfold_JX) ----
+                    delta_F_com = self.step_size[jj][ii][0] * prev_grad_F_com
+                    delta_F_crb = self.step_size[jj][ii][0] * prev_grad_F_crb
+                    F_trial = (F + delta_F_com * WEIGHT_F_COM + delta_F_crb * WEIGHT_F_CRB)
+                    F_trial = normalize_power(F_trial, W, H, Pt)
+                    with torch.no_grad():
+                        obj_trial = combined_obj(F_trial, W, A_dot, WEIGHT_F_COM, WEIGHT_F_CRB)
+                    if obj_trial > prev_obj:
+                        F = F_trial
+                        prev_obj = obj_trial
+                        continue
+
+                    grad_F_com = get_grad_F_com(H, F, W)
+                    grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
+                    if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
+                        print('Error NaN gradients!!!!!!!!!!!!!!!')
+                    grad_recalc += 1
+
+                # ---- same F step as PGA_Unfold_JX ----
+                delta_F_com = self.step_size[jj][ii][0] * grad_F_com
+                delta_F_crb = self.step_size[jj][ii][0] * grad_F_crb
+                F = (F + delta_F_com * WEIGHT_F_COM + delta_F_crb * WEIGHT_F_CRB)
+                F = normalize_power(F, W, H, Pt)
+                prev_grad_F_com = grad_F_com.detach()
+                prev_grad_F_crb = grad_F_crb.detach()
+                with torch.no_grad():
+                    prev_obj = combined_obj(F, W, A_dot, WEIGHT_F_COM, WEIGHT_F_CRB)
+            return F
+
+        for ii in range(n_iter_outer):
+            n_inner = self.step_size.shape[0]
+
+            # compute A_dot which has the minimum 1/CRLB for the given theta_desire_batch
+            A_dot = compute_A_dot(H, F, W, xi_0, theta_desire_batch, R_N_inv, Pt)
+
+            if track_metrics:
+                F = inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt)
+                rate_over_iters[ii, 0] = get_sum_rate(H, F, W, Pt).detach()
+                crb_over_iters[ii, 0] = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt).detach()
+            else:
+                F = checkpoint(inner_f_update, F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt, use_reentrant=False)
+
+            F = project_unit_modulus(F)
+
+            # ---- W update: reuse attempt, else same as PGA_Unfold_JX ----
+            w_reuse_accepted = False
+            if ii > 0 and prev_grad_W_com is not None:
+                with torch.no_grad():
+                    obj_preW = combined_obj(F, W, A_dot, WEIGHT_W_COM, WEIGHT_W_CRB)
+                W_trial_new = (
+                    W
+                    + self.step_size[0][ii][1] * prev_grad_W_com * WEIGHT_W_COM
+                    + self.step_size[0][ii][1] * prev_grad_W_crb * WEIGHT_W_CRB
+                )
+                F_wt, W_trial = normalize(F, W_trial_new, H, Pt)
+                with torch.no_grad():
+                    obj_wt = combined_obj(F_wt, W_trial, A_dot, WEIGHT_W_COM, WEIGHT_W_CRB)
+                if obj_wt > obj_preW:
+                    F, W = F_wt, W_trial
+                    w_reuse_accepted = True
+                else:
+                    W_grad_recalc += 1
+
+            if not w_reuse_accepted:
+                grad_W_k_com = get_grad_W_com(H, F, W)
+                grad_W_k_crb = get_grad_W_crb(F, W, xi_0, A_dot, R_N_inv)
+                if grad_W_k_com.isnan().any() or grad_W_k_crb.isnan().any():
+                    print('Error NaN gradients (W)!!!!!!!!!!!!!!!')
+                grad_J_w = grad_W_k_com * WEIGHT_W_COM + grad_W_k_crb * WEIGHT_W_CRB
+
+                W_new = (W + self.step_size[0][ii][1] * grad_W_k_com * WEIGHT_W_COM + self.step_size[0][ii][1] * grad_W_k_crb * WEIGHT_W_CRB)
+
+                F, W = normalize(F, W_new, H, Pt)
+                prev_grad_W_com = grad_W_k_com.detach()
+                prev_grad_W_crb = grad_W_k_crb.detach()
+
+            F_over_iters.append(F)
+            W_over_iters.append(W)
+            A_dot_over_iters.append(A_dot)
+
+        self.grad_recalc_count = grad_recalc
+        self.W_grad_recalc_count = W_grad_recalc
+        if track_metrics:
+            max_possible_F = n_iter_outer * max(self.step_size.shape[0] - 1, 0)
+            max_possible_W = max(n_iter_outer - 1, 0)
+            print(f'[GradReuse] F fallback recomputations = {grad_recalc} / {max_possible_F} '
+                  f'({100.0 * grad_recalc / max(max_possible_F, 1):.1f}%)')
+            print(f'[GradReuse] W fallback recomputations = {W_grad_recalc} / {max_possible_W} '
+                  f'({100.0 * W_grad_recalc / max(max_possible_W, 1):.1f}%)')
+
+        ## average over the batch
+        rate_over_iters = rate_over_iters.mean(dim=-1, keepdim=True)  # dimension: (n_iter_outer, 1, 1)
+        crb_over_iters = crb_over_iters.mean(dim=-1, keepdim=True)
+
+        if track_metrics:
+            return (rate_over_iters, crb_over_iters, F, W, A_dot)
+
+        F_over_iters = torch.stack(F_over_iters, dim=0)
+        W_over_iters = torch.stack(W_over_iters, dim=0)
+        A_dot_over_iters = torch.stack(A_dot_over_iters, dim=0)
+        return (rate_over_iters, crb_over_iters, F_over_iters, W_over_iters, A_dot_over_iters)
+
+
+class PGA_Unfold_Sub_Connected_JX(nn.Module):
+    """Unfolded PGA with a learnable sub-connected mask, fixed-block init.
+
+    Same F/W unfolding as ``PGA_Unfold_JX``, plus JointUPGANet's S update.
+    ``S`` starts as the fixed block mask (every RF chain serves ``Nt / Nrf``
+    antennas) and is refined inside every inner iteration:
+
+        F_eff = F ⊙ S
+        grad_F = S ⊙ grad_F_eff
+        grad_S = 2 Re(conj(F) ⊙ grad_F_eff)
+
+    Step-size layout is ``(J, I, 3)`` = (F, S, W). A ``(J, I, 2)`` tensor
+    is expanded to that layout (S column copied from F).
+    """
+
+    def __init__(self, step_size, n_antennas=None, n_rf_chains=None, mask=None, alpha=0.01):
+        super().__init__()
+        if step_size.shape[-1] == 2:
+            step_size = torch.cat(
+                [step_size[..., 0:1], step_size[..., 0:1].clone(), step_size[..., 1:2]],
+                dim=-1,
+            )
+        self.step_size = nn.Parameter(step_size)
+        self.inner_iter_history = []
+        self.alpha = alpha
+
+        n_ant = Nt if n_antennas is None else n_antennas
+        n_rf = Nrf if n_rf_chains is None else n_rf_chains
+        s0 = mask.float() if mask is not None else build_fixed_subconnected_mask(n_ant, n_rf)
+        self.register_buffer('fixed_s0', s0)
+
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True, init_method=None):
+
+        rate_init, F, W = initialize(H, Pt, initial_normalization, scheme=init_method)
+        B = len(H[0])
+        S = self.fixed_s0.to(device=F.device, dtype=F.real.dtype)
+        S = S.view(*([1] * (F.dim() - 2)), S.shape[-2], S.shape[-1]).expand_as(F.real).clone()
+
+        rate_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
+        crb_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
+        F_over_iters = []
+        W_over_iters = []
+        A_dot_over_iters = []
+
+        def inner_fs_update(F, S, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt):
+            for jj in range(n_inner):
+                F_eff = F * S
+                grad_F_com = get_grad_F_com(H, F_eff, W)
+                grad_F_crb = get_grad_F_crb(F_eff, W, xi_0, A_dot, R_N_inv)
+                if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
+                    print('Error NaN gradients!!!!!!!!!!!!!!!')
+                grad_F_eff = grad_F_com * WEIGHT_F_COM + grad_F_crb * WEIGHT_F_CRB
+                grad_F = S * grad_F_eff
+                grad_S = 2.0 * torch.real(torch.conj(F) * grad_F_eff)
+
+                F = F + self.step_size[jj][ii][0] * grad_F
+                F = project_unit_modulus(F)
+                F = normalize_power(F, W, H, Pt)
+
+                S = S + self.step_size[jj][ii][1] * grad_S
+                S = project_to_simplex_rows(S)
+            return F, S
+
+        for ii in range(n_iter_outer):
+            n_inner = self.step_size.shape[0]
+
+            A_dot = compute_A_dot(H, F * S, W, xi_0, theta_desire_batch, R_N_inv, Pt)
+
+            if track_metrics:
+                F, S = inner_fs_update(F, S, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt)
+            else:
+                F, S = checkpoint(inner_fs_update, F, S, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt, use_reentrant=False)
+
+            F = project_unit_modulus(F)
+            F_eff = F * S
+            grad_W_k_com = get_grad_W_com(H, F_eff, W)
+            grad_W_k_crb = get_grad_W_crb(F_eff, W, xi_0, A_dot, R_N_inv)
+
+            W_new = (W + self.step_size[0][ii][2] * grad_W_k_com * WEIGHT_W_COM
+                       + self.step_size[0][ii][2] * grad_W_k_crb * WEIGHT_W_CRB)
+
+            F, W = normalize(F, W_new, H, Pt)
+            F_eff = F * S
+            if track_metrics:
+                rate_over_iters[ii, 0] = get_sum_rate(H, F_eff, W, Pt, skip_unit_modulus=True).detach()
+                crb_over_iters[ii, 0] = get_crb_fe(H, F_eff, W, xi_0, A_dot, R_N_inv, Pt, skip_unit_modulus=True).detach()
+            F_over_iters.append(F_eff)
+            W_over_iters.append(W)
+            A_dot_over_iters.append(A_dot)
+
+        rate_over_iters = rate_over_iters.mean(dim=-1, keepdim=True)
+        crb_over_iters = crb_over_iters.mean(dim=-1, keepdim=True)
+
+        if track_metrics:
+            return (rate_over_iters, crb_over_iters, F * S, W, A_dot)
+
+        F_over_iters = torch.stack(F_over_iters, dim=0)
+        W_over_iters = torch.stack(W_over_iters, dim=0)
+        A_dot_over_iters = torch.stack(A_dot_over_iters, dim=0)
+        return (rate_over_iters, crb_over_iters, F_over_iters, W_over_iters, A_dot_over_iters)
+
+
+class PGA_Unfold_J_GradReuse_SC(nn.Module):
+    """Same as ``PGA_Unfold_Sub_Connected_JX``, plus lazy gradient reuse.
+
+    F/S inner steps (per outer iteration ``ii``):
+      jj = 0  : always compute a fresh ``grad_F_eff`` (same as sub-connected UPGA).
+      jj >= 1 : propose ``(F_trial, S_trial)`` from the stored ``grad_F_eff``;
+                accept if the objective increases, otherwise recompute and step.
+
+    W outer steps:
+      ii = 0  : always compute a fresh ``grad_W`` (same as sub-connected UPGA).
+      ii >= 1 : propose ``W_trial`` from the stored W gradient; accept if the
+                objective increases, otherwise recompute and step.
+
+    Metrics and the returned analog precoder use ``F_eff = F ⊙ S``.
+    """
+
+    def __init__(self, step_size, n_antennas=None, n_rf_chains=None, mask=None, alpha=0.01):
+        super().__init__()
+        if step_size.shape[-1] == 2:
+            step_size = torch.cat(
+                [step_size[..., 0:1], step_size[..., 0:1].clone(), step_size[..., 1:2]],
+                dim=-1,
+            )
+        self.step_size = nn.Parameter(step_size)
+        self.inner_iter_history = []
+        self.alpha = alpha
+        self.grad_recalc_count = 0
+        self.W_grad_recalc_count = 0
+
+        n_ant = Nt if n_antennas is None else n_antennas
+        n_rf = Nrf if n_rf_chains is None else n_rf_chains
+        s0 = mask.float() if mask is not None else build_fixed_subconnected_mask(n_ant, n_rf)
+        self.register_buffer('fixed_s0', s0)
+
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True, init_method=None):
+
+        rate_init, F, W = initialize(H, Pt, initial_normalization, scheme=init_method)
+        B = len(H[0])
+        S = self.fixed_s0.to(device=F.device, dtype=F.real.dtype)
+        S = S.view(*([1] * (F.dim() - 2)), S.shape[-2], S.shape[-1]).expand_as(F.real).clone()
+
+        rate_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
+        crb_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
+        F_over_iters = []
+        W_over_iters = []
+        A_dot_over_iters = []
+
+        grad_recalc = 0
+        W_grad_recalc = 0
+        prev_grad_W_com = None
+        prev_grad_W_crb = None
+
+        def combined_obj(F_eval, S_eval, W_eval, A_dot, weight_com, weight_crb):
+            F_eff = F_eval * S_eval
+            rate = get_sum_rate(H, F_eff, W_eval, Pt, skip_unit_modulus=True)
+            crb = get_crb_fe(H, F_eff, W_eval, xi_0, A_dot, R_N_inv, Pt, skip_unit_modulus=True)
+            return (rate * weight_com + crb.mean() * weight_crb).item()
+
+        def inner_fs_update(F, S, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt):
+            nonlocal grad_recalc
+            prev_grad_F_eff = None
+            prev_obj = None
+
+            for jj in range(n_inner):
+                if jj == 0:
+                    F_eff = F * S
+                    grad_F_com = get_grad_F_com(H, F_eff, W)
+                    grad_F_crb = get_grad_F_crb(F_eff, W, xi_0, A_dot, R_N_inv)
+                    if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
+                        print('Error NaN gradients!!!!!!!!!!!!!!!')
+                    grad_F_eff = grad_F_com * WEIGHT_F_COM + grad_F_crb * WEIGHT_F_CRB
+                else:
+                    # ---- reuse attempt (additional logic vs Sub_Connected_JX) ----
+                    grad_F = S * prev_grad_F_eff
+                    grad_S = 2.0 * torch.real(torch.conj(F) * prev_grad_F_eff)
+                    F_trial = F + self.step_size[jj][ii][0] * grad_F
+                    F_trial = project_unit_modulus(F_trial)
+                    F_trial = normalize_power(F_trial, W, H, Pt)
+                    S_trial = project_to_simplex_rows(S + self.step_size[jj][ii][1] * grad_S)
+                    with torch.no_grad():
+                        obj_trial = combined_obj(F_trial, S_trial, W, A_dot, WEIGHT_F_COM, WEIGHT_F_CRB)
+                    if obj_trial > prev_obj:
+                        F, S = F_trial, S_trial
+                        prev_obj = obj_trial
+                        continue
+
+                    F_eff = F * S
+                    grad_F_com = get_grad_F_com(H, F_eff, W)
+                    grad_F_crb = get_grad_F_crb(F_eff, W, xi_0, A_dot, R_N_inv)
+                    if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
+                        print('Error NaN gradients!!!!!!!!!!!!!!!')
+                    grad_F_eff = grad_F_com * WEIGHT_F_COM + grad_F_crb * WEIGHT_F_CRB
+                    grad_recalc += 1
+
+                # ---- same F/S step as PGA_Unfold_Sub_Connected_JX ----
+                grad_F = S * grad_F_eff
+                grad_S = 2.0 * torch.real(torch.conj(F) * grad_F_eff)
+
+                F = F + self.step_size[jj][ii][0] * grad_F
+                F = project_unit_modulus(F)
+                F = normalize_power(F, W, H, Pt)
+
+                S = S + self.step_size[jj][ii][1] * grad_S
+                S = project_to_simplex_rows(S)
+
+                prev_grad_F_eff = grad_F_eff.detach()
+                with torch.no_grad():
+                    prev_obj = combined_obj(F, S, W, A_dot, WEIGHT_F_COM, WEIGHT_F_CRB)
+            return F, S
+
+        for ii in range(n_iter_outer):
+            n_inner = self.step_size.shape[0]
+
+            A_dot = compute_A_dot(H, F * S, W, xi_0, theta_desire_batch, R_N_inv, Pt)
+
+            if track_metrics:
+                F, S = inner_fs_update(F, S, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt)
+            else:
+                F, S = checkpoint(inner_fs_update, F, S, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt, use_reentrant=False)
+
+            F = project_unit_modulus(F)
+            F_eff = F * S
+
+            # ---- W update: reuse attempt, else same as Sub_Connected_JX ----
+            w_reuse_accepted = False
+            if ii > 0 and prev_grad_W_com is not None:
+                with torch.no_grad():
+                    obj_preW = combined_obj(F, S, W, A_dot, WEIGHT_W_COM, WEIGHT_W_CRB)
+                W_trial_new = (
+                    W
+                    + self.step_size[0][ii][2] * prev_grad_W_com * WEIGHT_W_COM
+                    + self.step_size[0][ii][2] * prev_grad_W_crb * WEIGHT_W_CRB
+                )
+                F_wt, W_trial = normalize(F, W_trial_new, H, Pt)
+                with torch.no_grad():
+                    obj_wt = combined_obj(F_wt, S, W_trial, A_dot, WEIGHT_W_COM, WEIGHT_W_CRB)
+                if obj_wt > obj_preW:
+                    F, W = F_wt, W_trial
+                    w_reuse_accepted = True
+                else:
+                    W_grad_recalc += 1
+
+            if not w_reuse_accepted:
+                grad_W_k_com = get_grad_W_com(H, F_eff, W)
+                grad_W_k_crb = get_grad_W_crb(F_eff, W, xi_0, A_dot, R_N_inv)
+                if grad_W_k_com.isnan().any() or grad_W_k_crb.isnan().any():
+                    print('Error NaN gradients (W)!!!!!!!!!!!!!!!')
+
+                W_new = (W + self.step_size[0][ii][2] * grad_W_k_com * WEIGHT_W_COM
+                           + self.step_size[0][ii][2] * grad_W_k_crb * WEIGHT_W_CRB)
+
+                F, W = normalize(F, W_new, H, Pt)
+                prev_grad_W_com = grad_W_k_com.detach()
+                prev_grad_W_crb = grad_W_k_crb.detach()
+
+            F_eff = F * S
+            if track_metrics:
+                rate_over_iters[ii, 0] = get_sum_rate(H, F_eff, W, Pt, skip_unit_modulus=True).detach()
+                crb_over_iters[ii, 0] = get_crb_fe(H, F_eff, W, xi_0, A_dot, R_N_inv, Pt, skip_unit_modulus=True).detach()
+            F_over_iters.append(F_eff)
+            W_over_iters.append(W)
+            A_dot_over_iters.append(A_dot)
+
+        self.grad_recalc_count = grad_recalc
+        self.W_grad_recalc_count = W_grad_recalc
+        if track_metrics:
+            max_possible_F = n_iter_outer * max(self.step_size.shape[0] - 1, 0)
+            max_possible_W = max(n_iter_outer - 1, 0)
+            print(f'[GradReuse-SC] F/S fallback recomputations = {grad_recalc} / {max_possible_F} '
+                  f'({100.0 * grad_recalc / max(max_possible_F, 1):.1f}%)')
+            print(f'[GradReuse-SC] W fallback recomputations = {W_grad_recalc} / {max_possible_W} '
+                  f'({100.0 * W_grad_recalc / max(max_possible_W, 1):.1f}%)')
+
+        rate_over_iters = rate_over_iters.mean(dim=-1, keepdim=True)
+        crb_over_iters = crb_over_iters.mean(dim=-1, keepdim=True)
+
+        if track_metrics:
+            return (rate_over_iters, crb_over_iters, F * S, W, A_dot)
+
+        F_over_iters = torch.stack(F_over_iters, dim=0)
+        W_over_iters = torch.stack(W_over_iters, dim=0)
+        A_dot_over_iters = torch.stack(A_dot_over_iters, dim=0)
+        return (rate_over_iters, crb_over_iters, F_over_iters, W_over_iters, A_dot_over_iters)
+
+# ============================================== Unfolded PGA with decaying inner iterations ==============================
+class PGA_Unfold_JX_decay(nn.Module):
+    """Same as ``PGA_Unfold_JX``, plus an inexact F-block residual early stop.
+
+    Inner PGA on F is identical to ``PGA_Unfold_JX`` except it may stop early when:
+
+        ||∇_F J(F_{i,j}, W_i)||  ≤  η  ||∇_F J(F_i, W_i)||
+
+    for ``jj >= J_min``, otherwise it runs the full ``J_max`` layers.
+    """
+
+    def __init__(self, step_size, alpha=0.04, eps=1e-12, J_min=2, eta=0.95):
+        super().__init__()
+
+        self.step_size = nn.Parameter(step_size)  # parameters = (mu, lambda)
+        self.inner_iter_history = []
+        self.eps = eps
+        self.J_min = J_min
+        self.eta = eta
+        self.alpha = alpha  # unused; kept so existing call sites stay valid
+
+    # =========== Projection Gradient Ascent execution ===================
+    def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True, init_method=None):
+
+        rate_init, F, W = initialize(H, Pt, initial_normalization, scheme=init_method)
+
+        B = len(H[0])
+
+        rate_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
+        crb_over_iters = torch.zeros(n_iter_outer, 1, B, device=H.device)
+        F_over_iters = []
+        W_over_iters = []
+        A_dot_over_iters = []
+        self.inner_iter_history = []
+        n_used_holder = [0]
+
+        def inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt):
+            J_min = min(self.J_min, n_inner)
+            g0 = None
+            n_used = 0
 
             for jj in range(n_inner):
                 grad_F_com = get_grad_F_com(H, F, W)
                 grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
                 if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
                     print('Error NaN gradients!!!!!!!!!!!!!!!')
+
+                grad_F_J = WEIGHT_F_COM * grad_F_com + WEIGHT_F_CRB * grad_F_crb
+                g = torch.linalg.matrix_norm(grad_F_J, ord='fro').mean()
+
+                if jj == 0:
+                    g0 = g.detach()
+                elif track_metrics and jj >= J_min and (g <= self.eta * g0).item():
+                    break
+
                 delta_F_com = self.step_size[jj][ii][0] * grad_F_com
                 delta_F_crb = self.step_size[jj][ii][0] * grad_F_crb
-                F = (F+ delta_F_com * WEIGHT_F_COM+ delta_F_crb * WEIGHT_F_CRB)
+                F = (F + delta_F_com * WEIGHT_F_COM + delta_F_crb * WEIGHT_F_CRB)
                 F = normalize_power(F, W, H, Pt)
+                n_used = jj + 1
+
+            n_used_holder[0] = n_used
             return F
 
         for ii in range(n_iter_outer):
+            n_inner = self.step_size.shape[0]
 
             # compute A_dot which has the minimum 1/CRLB for the given theta_desire_batch
             A_dot = compute_A_dot(H, F, W, xi_0, theta_desire_batch, R_N_inv, Pt)
-
-            grad_F_com = get_grad_F_com(H, F, W)
-            grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
-
-            if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
-                print('Error NaN gradients before adaptive J!!!!!!!!!!!!!!!')
-
-            grad_F_J = WEIGHT_F_COM * grad_F_com + WEIGHT_F_CRB * grad_F_crb
-            n_inner = _n_inner_from_grad(grad_F_J)
 
             if track_metrics:
                 F = inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt)
                 rate_over_iters[ii, 0] = get_sum_rate(H, F, W, Pt).detach()
                 crb_over_iters[ii, 0] = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt).detach()
-
             else:
-                F = checkpoint(inner_f_update,F,W,H,xi_0,A_dot,R_N_inv,n_inner,Pt,use_reentrant=False)
+                F = checkpoint(inner_f_update, F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt, use_reentrant=False)
 
-            # Projection of analog precoder
+            self.inner_iter_history.append(n_used_holder[0])
+
             F = project_unit_modulus(F)
-
             grad_W_k_com = get_grad_W_com(H, F, W)
             grad_W_k_crb = get_grad_W_crb(F, W, xi_0, A_dot, R_N_inv)
+            grad_J_w = grad_W_k_com * WEIGHT_W_COM + grad_W_k_crb * WEIGHT_W_CRB
 
-            W_new = (W+ self.step_size[0][ii][1] * grad_W_k_com * WEIGHT_W_COM+ self.step_size[0][ii][1] * grad_W_k_crb * WEIGHT_W_CRB)
+            W_new = (W + self.step_size[0][ii][1] * grad_W_k_com * WEIGHT_W_COM + self.step_size[0][ii][1] * grad_W_k_crb * WEIGHT_W_CRB)
 
-            # Projection / normalization
             F, W = normalize(F, W_new, H, Pt)
             F_over_iters.append(F)
             W_over_iters.append(W)
             A_dot_over_iters.append(A_dot)
 
         ## average over the batch
-        rate_over_iters = rate_over_iters.mean(dim=-1, keepdim=True) # dimension
-        crb_over_iters = crb_over_iters.mean(dim=-1, keepdim=True) # dimension
+        rate_over_iters = rate_over_iters.mean(dim=-1, keepdim=True)  # dimension: (n_iter_outer, 1, 1)
+        crb_over_iters = crb_over_iters.mean(dim=-1, keepdim=True)
 
         if track_metrics:
             return (rate_over_iters, crb_over_iters, F, W, A_dot)
@@ -788,22 +1377,22 @@ def get_grad_W_rad(F, W, R):
     return grad_W
 
 # ================== Deep-supervision loss over outer-iteration (F, W) ==================
-def _iterate_loss(F, W, H, xi_0, A_dot, R_N_inv, Pt):
-    sum_rate = get_sum_rate(H, F, W, Pt)
-    crb = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt)
+def _iterate_loss(F, W, H, xi_0, A_dot, R_N_inv, Pt, skip_unit_modulus=False):
+    sum_rate = get_sum_rate(H, F, W, Pt, skip_unit_modulus=skip_unit_modulus)
+    crb = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt, skip_unit_modulus=skip_unit_modulus)
     return -(OMEGA * sum_rate + torch.mean(crb))
 
 
-def get_sum_loss(F, W, H, xi_0, A_dot, R_N_inv, Pt, beta=0.97):
+def get_sum_loss(F, W, H, xi_0, A_dot, R_N_inv, Pt, beta=0.97, skip_unit_modulus=False):
     # Stacked outer iterates: F (n_outer, K, B, Nt, Nrf), A_dot (n_outer, Nt, Nt)
     if F.dim() == 5:
         losses = []
         for t in range(F.shape[0]):
             A_t = A_dot[t] if A_dot.dim() >= 3 else A_dot
-            losses.append(_iterate_loss(F[t], W[t], H, xi_0, A_t, R_N_inv, Pt))
+            losses.append(_iterate_loss(F[t], W[t], H, xi_0, A_t, R_N_inv, Pt, skip_unit_modulus=skip_unit_modulus))
         return torch.stack(losses).mean()
 
-    return _iterate_loss(F, W, H, xi_0, A_dot, R_N_inv, Pt)
+    return _iterate_loss(F, W, H, xi_0, A_dot, R_N_inv, Pt, skip_unit_modulus=skip_unit_modulus)
 
 
 # ================== compute CRLB gradients =========================
@@ -847,3 +1436,38 @@ def get_grad_W_crb(F, W, xi_0, A_dot, R_N_inv):
     denominator = batch_trace.view(1, -1, 1, 1)
     grad_W_crb = numerator / denominator
     return grad_W_crb
+
+
+# ================== Sub-connected mask =========================
+
+
+def build_fixed_subconnected_mask(n_antennas, n_rf_chains, device=None, dtype=None):
+    """Fixed block sub-connected mask (Nt, Nrf).
+
+    Every RF chain serves a contiguous block of ``n_antennas // n_rf_chains``
+    antennas, so each row has exactly one 1. This is the ``s_init='fixed'``
+    mask from JointUPGANet.
+    """
+    if n_antennas % n_rf_chains != 0:
+        raise ValueError(
+            f"n_antennas ({n_antennas}) must be divisible by n_rf_chains ({n_rf_chains})"
+        )
+    mask = torch.zeros(n_antennas, n_rf_chains, device=device, dtype=dtype)
+    antennas_per_rf = n_antennas // n_rf_chains
+    for r in range(n_rf_chains):
+        mask[r * antennas_per_rf:(r + 1) * antennas_per_rf, r] = 1.0
+    return mask
+
+
+def project_to_simplex_rows(X):
+    """Project each row of ``X`` onto the probability simplex (Duchi et al.)."""
+    d = X.shape[-1]
+    u, _ = torch.sort(X, dim=-1, descending=True)
+    cumsum = torch.cumsum(u, dim=-1)
+    j_idx = torch.arange(1, d + 1, device=X.device, dtype=X.dtype)
+    water_levels = (cumsum - 1.0) / j_idx
+    rho = torch.clamp((u > water_levels).long().sum(dim=-1), min=1)
+    c_rho = torch.gather(cumsum, dim=-1, index=(rho - 1).unsqueeze(-1)).squeeze(-1)
+    theta = ((c_rho - 1.0) / rho.to(dtype=X.dtype)).unsqueeze(-1)
+    return torch.clamp(X - theta, min=0.0)
+
