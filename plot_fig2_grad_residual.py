@@ -45,28 +45,33 @@ CACHE_NAME = f"{FIG_STEM}_{Nt}_{OMEGA}.mat"
 
 
 def _configure_matplotlib():
+    # Font sizes are chosen for IEEE single-column width after
+    # \includegraphics[width=\columnwidth] / \linewidth.
     mpl.rcParams.update({
         "font.family": "serif",
         "font.serif": ["Times New Roman", "Times", "DejaVu Serif"],
         "mathtext.fontset": "cm",
-        "axes.labelsize": 12,
-        "axes.titlesize": 12,
-        "xtick.labelsize": 10,
-        "ytick.labelsize": 10,
-        "legend.fontsize": 10,
-        "axes.linewidth": 0.9,
+        "font.size": 8,
+        "axes.labelsize": 8,
+        "axes.titlesize": 8,
+        "xtick.labelsize": 7,
+        "ytick.labelsize": 7,
+        "legend.fontsize": 7,
+        "axes.linewidth": 0.8,
         "xtick.direction": "in",
         "ytick.direction": "in",
         "xtick.top": True,
         "ytick.right": True,
-        "xtick.major.size": 4.0,
-        "ytick.major.size": 4.0,
-        "lines.linewidth": 1.8,
-        "lines.markersize": 5.5,
+        "xtick.major.size": 3.0,
+        "ytick.major.size": 3.0,
+        "xtick.major.width": 0.7,
+        "ytick.major.width": 0.7,
+        "lines.linewidth": 1.4,
+        "lines.markersize": 4.0,
         "figure.dpi": 150,
         "savefig.dpi": 600,
         "savefig.bbox": "tight",
-        "savefig.pad_inches": 0.03,
+        "savefig.pad_inches": 0.02,
         "text.usetex": False,
     })
 
@@ -142,30 +147,42 @@ def plot_residual(outer_idx, residual_j5, residual_j10, out_dir):
     _configure_matplotlib()
     os.makedirs(out_dir, exist_ok=True)
 
-    fig, ax = plt.subplots(figsize=(3.6, 2.7))
+    fig, ax = plt.subplots(figsize=(3.4, 2.35))
 
     markevery = max(1, len(outer_idx) // 12)
     ax.plot(
         outer_idx, residual_j5,
         linestyle="-", marker="o", markevery=markevery,
-        color="#1f4e79", markerfacecolor="white", markeredgewidth=1.2,
+        color="#1f4e79", markerfacecolor="white", markeredgewidth=0.9,
         label=r"Fixed-UPGA, $J=5$",
     )
     ax.plot(
         outer_idx, residual_j10,
         linestyle="-", marker="D", markevery=markevery,
-        color="#c45c26", markerfacecolor="white", markeredgewidth=1.2,
+        color="#c45c26", markerfacecolor="white", markeredgewidth=0.9,
         label=r"Fixed-UPGA, $J=10$",
     )
 
     ax.set_xlabel(r"Outer-layer index $i$")
     ax.set_ylabel(r"Analog gradient residual $\|\nabla_{\mathbf{F}} g\|_F$")
-    ax.set_xlim(outer_idx[0], outer_idx[-1])
-    ax.set_ylim(bottom=0.0)
-    ax.grid(True, which="major", linestyle=":", linewidth=0.6, color="0.75")
-    ax.legend(loc="upper right", frameon=True, fancybox=False, edgecolor="0.5", framealpha=1.0)
+    ax.set_xlim(float(outer_idx[0]), float(outer_idx[-1]))
 
-    fig.tight_layout(pad=0.2)
+    y_max = float(max(np.max(residual_j5), np.max(residual_j10)))
+    ax.set_ylim(0.0, y_max * 1.08)
+
+    ax.grid(True, which="major", linestyle=":", linewidth=0.5, color="0.75")
+    ax.legend(
+        loc="upper right",
+        frameon=True,
+        fancybox=False,
+        edgecolor="0.5",
+        framealpha=1.0,
+        borderpad=0.3,
+        handlelength=1.6,
+        labelspacing=0.25,
+    )
+
+    fig.tight_layout(pad=0.15)
 
     eps_path = os.path.join(out_dir, f"{FIG_STEM}.eps")
     png_path = os.path.join(out_dir, f"{FIG_STEM}.png")
