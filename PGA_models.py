@@ -368,6 +368,7 @@ class PGA_Unfold_JX(nn.Module):
         F_over_iters = []
         W_over_iters = []
         A_dot_over_iters = []
+        self.residual_history = []
 
         def inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt):
             for jj in range(n_inner):
@@ -375,6 +376,10 @@ class PGA_Unfold_JX(nn.Module):
                 grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
                 if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
                     print('Error NaN gradients!!!!!!!!!!!!!!!')
+                if track_metrics and jj == 0:
+                    grad_F_J = WEIGHT_F_COM * grad_F_com + WEIGHT_F_CRB * grad_F_crb
+                    residual = torch.linalg.matrix_norm(grad_F_J, ord='fro').mean()
+                    self.residual_history.append(residual.detach().item())
                 delta_F_com = self.step_size[jj][ii][0] * grad_F_com
                 delta_F_crb = self.step_size[jj][ii][0] * grad_F_crb
                 F = ( F + delta_F_com * WEIGHT_F_COM + delta_F_crb * WEIGHT_F_CRB )
