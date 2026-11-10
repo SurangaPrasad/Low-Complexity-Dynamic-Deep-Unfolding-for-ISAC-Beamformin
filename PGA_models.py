@@ -882,15 +882,24 @@ class PGA_Unfold_JX_decay(nn.Module):
     for ``jj >= J_min``, otherwise it runs the full ``J_max`` layers.
     """
 
-    def __init__(self, step_size, alpha=0.04, eps=1e-12, J_min=2, eta=0.95):
+    def __init__(self, step_size, alpha=0.04, eps=1e-12, J_min=2, eta=0.95, eta_temperature=0.05):
         super().__init__()
 
         self.step_size = nn.Parameter(step_size)  # parameters = (mu, lambda)
+        eta_device = step_size.device if torch.is_tensor(step_size) else torch.device('cpu')
+        self.eta = nn.Parameter(torch.tensor(float(eta), dtype=REAL_DTYPE, device=eta_device))
         self.inner_iter_history = []
         self.eps = eps
         self.J_min = J_min
-        self.eta = eta
+        self.eta_temperature = eta_temperature
         self.alpha = alpha  # unused; kept so existing call sites stay valid
+
+    def load_state_dict(self, state_dict, strict=True):
+        # Older decay checkpoints only store step_size; keep the default eta.
+        if 'eta' not in state_dict:
+            state_dict = dict(state_dict)
+            state_dict['eta'] = self.eta.detach().clone()
+        return super().load_state_dict(state_dict, strict=strict)
 
     # =========== Projection Gradient Ascent execution ===================
     def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True, init_method=None):
@@ -911,6 +920,7 @@ class PGA_Unfold_JX_decay(nn.Module):
             J_min = min(self.J_min, n_inner)
             g0 = None
             n_used = 0
+            eta = self.eta.clamp(1e-4, 1.0)
 
             for jj in range(n_inner):
                 grad_F_com = get_grad_F_com(H, F, W)
@@ -923,12 +933,24 @@ class PGA_Unfold_JX_decay(nn.Module):
 
                 if jj == 0:
                     g0 = g.detach()
-                elif track_metrics and jj >= J_min and (g <= self.eta * g0).item():
-                    break
+                    gate = None
+                elif jj >= J_min:
+                    if track_metrics:
+                        if (g <= eta * g0).item():
+                            break
+                        gate = None
+                    else:
+                        gate = torch.sigmoid((g.detach() - eta * g0) / self.eta_temperature)
+                else:
+                    gate = None
 
-                delta_F_com = self.step_size[jj][ii][0] * grad_F_com
-                delta_F_crb = self.step_size[jj][ii][0] * grad_F_crb
-                F = (F + delta_F_com * WEIGHT_F_COM + delta_F_crb * WEIGHT_F_CRB)
+                delta_F = (
+                    self.step_size[jj][ii][0] * grad_F_com * WEIGHT_F_COM
+                    + self.step_size[jj][ii][0] * grad_F_crb * WEIGHT_F_CRB
+                )
+                if gate is not None:
+                    delta_F = gate * delta_F
+                F = F + delta_F
                 F = normalize_power(F, W, H, Pt)
                 n_used = jj + 1
 

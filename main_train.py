@@ -104,15 +104,17 @@ def run_UPGA_decay(step_size_UPGA_decay):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            with torch.no_grad():
+                model_UPGA_decay.eta.clamp_(1e-4, 1.0)
             batch_losses.append(loss.item())
 
         avg_loss = sum(batch_losses) / len(batch_losses)
         epoch_losses.append(avg_loss)
-        print(f"Epoch [{i_epoch+1}/{n_epoch}], Average Loss: {avg_loss:.4f}")
+        print(f"Epoch [{i_epoch+1}/{n_epoch}], Average Loss: {avg_loss:.4f}, eta: {model_UPGA_decay.eta.item():.4f}")
 
     save_path = model_file(f'UPGA_J{step_size_UPGA_decay.shape[0]}_decay')
     torch.save(model_UPGA_decay.state_dict(), save_path)
-    print(f'Saved {save_path}')
+    print(f'Saved {save_path} (eta={model_UPGA_decay.eta.item():.4f})')
 
 
 def run_UPGA_subconnected(step_size_UPGA):

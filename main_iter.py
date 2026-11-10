@@ -684,28 +684,28 @@ if plot_figure == 1:
     plt.savefig(directory_result + 'objective_vs_iter_' + str(Nt) + '_' + str(OMEGA) + '.png',bbox_inches='tight',pad_inches=0.02)
     plt.savefig(directory_result + 'objective_vs_iter_' + str(Nt) + '_' + str(OMEGA) + '.eps',bbox_inches='tight',pad_inches=0.02)
 
-    if not init_compare_curves:
-        for init_flag, method, style, color, init_label in [
-            ('run_init_random', 'conv', ':d', 'gray', label_init_random),
-            ('run_init_svd', 'svd', '--o', 'blue', label_init_svd),
-            ('run_init_prop', 'prop', '-.x', 'green', label_init_prop),
-            ('run_init_isac_eigen', 'isac_eigen', '-s', 'red', label_init_isac_eigen),
-        ]:
-            obj_name = 'obj_iter_init_' + method
-            if globals().get(init_flag) == 1 and obj_name in globals():
-                init_compare_curves.append((globals()[obj_name], style, color, init_label))
+    # if not init_compare_curves:
+    #     for init_flag, method, style, color, init_label in [
+    #         ('run_init_random', 'conv', ':d', 'gray', label_init_random),
+    #         ('run_init_svd', 'svd', '--o', 'blue', label_init_svd),
+    #         ('run_init_prop', 'prop', '-.x', 'green', label_init_prop),
+    #         ('run_init_isac_eigen', 'isac_eigen', '-s', 'red', label_init_isac_eigen),
+    #     ]:
+    #         obj_name = 'obj_iter_init_' + method
+    #         if globals().get(init_flag) == 1 and obj_name in globals():
+    #             init_compare_curves.append((globals()[obj_name], style, color, init_label))
 
-    if init_compare_curves:
-        plt.figure(figsize=(8, 5.2))
-        iter_init_x = np.arange(n_iter_outer + 1)
-        for obj_curve, style, color, curve_label in init_compare_curves:
-            plt.plot(iter_init_x, obj_curve, style, markevery=5, color=color, linewidth=3, markersize=7, label=curve_label)
-        plt.xlabel(r'Number of iterations/layers $(I)$', fontsize=14)
-        plt.ylabel(r'$\omega R + \log(\text{CRLB}^{-1})$', fontsize=14)
-        plt.grid()
-        safe_legend(loc='upper center', bbox_to_anchor=(0.5, -0.12), fontsize=11, labelspacing=0.1, ncol=2, frameon=False, columnspacing=0.6,)
-        plt.savefig(directory_result + 'objective_vs_iter_init_' + str(Nt) + '_' + str(OMEGA) + '.png', bbox_inches='tight', pad_inches=0.02)
-        plt.savefig(directory_result + 'objective_vs_iter_init_' + str(Nt) + '_' + str(OMEGA) + '.eps', bbox_inches='tight', pad_inches=0.02)
+    # if init_compare_curves:
+    #     plt.figure(figsize=(8, 5.2))
+    #     iter_init_x = np.arange(n_iter_outer + 1)
+    #     for obj_curve, style, color, curve_label in init_compare_curves:
+    #         plt.plot(iter_init_x, obj_curve, style, markevery=5, color=color, linewidth=3, markersize=7, label=curve_label)
+    #     plt.xlabel(r'Number of iterations/layers $(I)$', fontsize=14)
+    #     plt.ylabel(r'$\omega R + \log(\text{CRLB}^{-1})$', fontsize=14)
+    #     plt.grid()
+    #     safe_legend(loc='upper center', bbox_to_anchor=(0.5, -0.12), fontsize=11, labelspacing=0.1, ncol=2, frameon=False, columnspacing=0.6,)
+    #     plt.savefig(directory_result + 'objective_vs_iter_init_' + str(Nt) + '_' + str(OMEGA) + '.png', bbox_inches='tight', pad_inches=0.02)
+    #     plt.savefig(directory_result + 'objective_vs_iter_init_' + str(Nt) + '_' + str(OMEGA) + '.eps', bbox_inches='tight', pad_inches=0.02)
 
 
 
