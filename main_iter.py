@@ -191,7 +191,7 @@ if run_program == 1:
         print('Running unfolded PGA with J = 1...')
         # Create new model and load states
         model_UPGA_J1 = PGA_Unfold_JX(step_size_UPGA_J1)
-        model_UPGA_J1.load_state_dict(torch.load(load_model_file('UPGA_J1'), map_location=device))
+        model_UPGA_J1.load_state_dict(torch.load(load_model_file('UPGA_J1', init_scheme), map_location=device))
         register_step_size('UPGA (J=1)', model_UPGA_J1.step_size)
 
         sum_rate_UPGA_J1, crb_UPGA_J1, F_UPGA_J1, W_UPGA_J1, _ = model_UPGA_J1.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
@@ -205,7 +205,7 @@ if run_program == 1:
         print('Running unfolded PGA with J = 4...')
         # Create new model and load states
         model_UPGA_J4 = PGA_Unfold_JX(step_size_UPGA_J4)
-        model_UPGA_J4.load_state_dict(torch.load(load_model_file('UPGA_J4'), map_location=device))
+        model_UPGA_J4.load_state_dict(torch.load(load_model_file('UPGA_J4', init_scheme), map_location=device))
         register_step_size('UPGA (J=4)', model_UPGA_J4.step_size)
         sum_rate_UPGA_J4, crb_UPGA_J4, F_UPGA_J4, W_UPGA_J4, _ = model_UPGA_J4.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
                                                                                              snr,
@@ -218,7 +218,7 @@ if run_program == 1:
         print('Running unfolded PGA with J = 5...')
         # Create new model and load states
         model_UPGA_J5 = PGA_Unfold_JX(step_size_UPGA_J5)
-        model_UPGA_J5.load_state_dict(torch.load(load_model_file('UPGA_J5'), map_location=device))
+        model_UPGA_J5.load_state_dict(torch.load(load_model_file('UPGA_J5', init_scheme), map_location=device))
         register_step_size('UPGA (J=5)', model_UPGA_J5.step_size)
 
         sum_rate_UPGA_J5, crb_UPGA_J5, F_UPGA_J5, W_UPGA_J5, _ = model_UPGA_J5.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
@@ -232,7 +232,7 @@ if run_program == 1:
         print('Running unfolded PGA with J = 6...')
         # Create new model and load states
         model_UPGA_J6 = PGA_Unfold_JX(step_size_UPGA_J6)
-        model_UPGA_J6.load_state_dict(torch.load(load_model_file('UPGA_J6'), map_location=device))
+        model_UPGA_J6.load_state_dict(torch.load(load_model_file('UPGA_J6', init_scheme), map_location=device))
         register_step_size('UPGA (J=6)', model_UPGA_J6.step_size)
         sum_rate_UPGA_J6, crb_UPGA_J6, F_UPGA_J6, W_UPGA_J6, _ = model_UPGA_J6.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
                                                                                                 snr,
@@ -246,7 +246,7 @@ if run_program == 1:
         print('Running unfolded PGA with J = 10...')
         # Create new model and load states
         model_UPGA_J10 = PGA_Unfold_JX(step_size_UPGA_J10)
-        model_UPGA_J10.load_state_dict(torch.load(load_model_file('UPGA_J10'), map_location=device))
+        model_UPGA_J10.load_state_dict(torch.load(load_model_file('UPGA_J10', init_scheme), map_location=device))
         register_step_size('UPGA (J=10)', model_UPGA_J10.step_size)
 
         sum_rate_UPGA_J10, crb_UPGA_J10, F_UPGA_J10, W_UPGA_J10, _ = model_UPGA_J10.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
@@ -262,7 +262,7 @@ if run_program == 1:
         print('Running unfolded PGA with J = 20...')
         # Create new model and load states
         model_UPGA_J20 = PGA_Unfold_JX(step_size_UPGA_J20)
-        model_UPGA_J20.load_state_dict(torch.load(load_model_file('UPGA_J20'), map_location=device))
+        model_UPGA_J20.load_state_dict(torch.load(load_model_file('UPGA_J20', init_scheme), map_location=device))
         register_step_size('UPGA (J=20)', model_UPGA_J20.step_size)
 
         sum_rate_UPGA_J20, crb_UPGA_J20, F_UPGA_J20, W_UPGA_J20, _ = model_UPGA_J20.execute_PGA(H_test, xi_0, theta_desire, R_N_inv, snr,
@@ -275,7 +275,7 @@ if run_program == 1:
     if run_UPGA_J5_decay == 1:
         print('Running unfolded PGA with decaying J (max J=5)...')
         model_UPGA_J5_decay = PGA_Unfold_JX_decay(step_size_UPGA_J5)
-        model_UPGA_J5_decay.load_state_dict(torch.load(load_model_file('UPGA_J5_decay'), map_location=device))
+        model_UPGA_J5_decay.load_state_dict(torch.load(load_model_file('UPGA_J5_decay', init_scheme), map_location=device))
         register_step_size('UPGA (J=5, decay)', model_UPGA_J5_decay.step_size)
 
         sum_rate_UPGA_J5_decay, crb_UPGA_J5_decay, F_UPGA_J5_decay, W_UPGA_J5_decay, _ = model_UPGA_J5_decay.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
@@ -292,7 +292,7 @@ if run_program == 1:
     if run_UPGA_J10_decay == 1:
         print('Running unfolded PGA with decaying J...')
         model_UPGA_J10_decay = PGA_Unfold_JX_decay(step_size_UPGA_J10_decay)
-        model_UPGA_J10_decay.load_state_dict(torch.load(load_model_file('UPGA_J10_decay'), map_location=device))
+        model_UPGA_J10_decay.load_state_dict(torch.load(load_model_file('UPGA_J10_decay', init_scheme), map_location=device))
         register_step_size('UPGA (J=10, decay)', model_UPGA_J10_decay.step_size)
 
         sum_rate_UPGA_J10_decay, crb_UPGA_J10_decay, F_UPGA_J10_decay, W_UPGA_J10_decay, _ = model_UPGA_J10_decay.execute_PGA(H_test, xi_0, theta_desire, R_N_inv,
