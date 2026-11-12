@@ -35,7 +35,8 @@ run_PGA_Conv_J10_LS_SC = 0           # Sub-connected conv. PGA with line search 
 
 run_UPGA_J5_SC = 0                   # Sub-connected UPGA (fixed-block S init, J = 5)
 run_UPGA_J10_SC = 0                  # Sub-connected UPGA (fixed-block S init, J = 10)
-run_UPGA_J_GradReuse = 1             # Unfolded PGA with lazy gradient reuse (J = 5)
+run_UPGA_J_GradReuse_J5 = 0             # Unfolded PGA with lazy gradient reuse (J = 5)
+run_UPGA_J_GradReuse_J10 = 1             # Unfolded PGA with lazy gradient reuse (J = 10)
 run_UPGA_J_GradReuse_SC = 0          # Sub-connected UPGA with lazy gradient reuse (J = 5)
 
 run_init_random = 0                  # Random unit-modulus analog init
@@ -73,9 +74,9 @@ OMEGA = 0.25
 
 # ////////////////////////////////////////////// MODEL PARAMS //////////////////////////////////////////////
 train_size = 112 * 2    # size of training set
-test_size = 20     # size of testing set
+test_size = 30     # size of testing set
 batch_size = len(snr_dB_list) * 4
-n_epoch = 20         # number of training epochs
+n_epoch = 30         # number of training epochs
 learning_rate = 0.0005 # learning 
 # learning_rate = 0.00002
 
@@ -145,7 +146,9 @@ step_size_UPGA_J10_PC = torch.full([n_iter_inner_J10, n_iter_outer, K + 1], step
 step_size_UPGA_J5_decay = torch.full([n_iter_inner_J5, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
 step_size_UPGA_J10_decay = torch.full([n_iter_inner_J10, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
 step_size_UPGA_J20_decay = torch.full([n_iter_inner_J20, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
-# J_GradReuse uses the same shape as J10; gradient reuse logic is handled inside execute_PGA
+# GradReuse reuses Fixed-UPGA step-size shapes; reuse logic is inside execute_PGA
+step_size_UPGA_J_GradReuse_J5 = torch.full([n_iter_inner_J5, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
+step_size_UPGA_J_GradReuse_J10 = torch.full([n_iter_inner_J10, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
 # Sub-connected UPGA: (J, I, 3) = (F, S, W) step sizes
 step_size_UPGA_J5_SC = torch.full([n_iter_inner_J5, n_iter_outer, 3], step_size_fixed, device=device, requires_grad=True)
 step_size_UPGA_J10_SC = torch.full([n_iter_inner_J10, n_iter_outer, 3], step_size_fixed, device=device, requires_grad=True)
@@ -207,13 +210,14 @@ model_file_name_UPGA_J10_PC = model_file('UPGA_J10_PC')
 model_file_name_UPGA_J5_decay = model_file('UPGA_J5_decay')
 model_file_name_UPGA_J10_decay = model_file('UPGA_J10_decay')
 model_file_name_UPGA_J20_decay = model_file('UPGA_J20_decay')
-model_file_name_UPGA_J_GradReuse = model_file('UPGA_J_GradReuse')
+model_file_name_UPGA_J_GradReuse_J5 = model_file('UPGA_J5_GradReuse')
+model_file_name_UPGA_J_GradReuse_J10 = model_file('UPGA_J10_GradReuse')
 model_file_name_UPGA_J10_PC_omega03 = directory_model03 + 'UPGA_J10_PC.pth'
 
 model_file_name_PGA_Conv_J10_LS = model_file('PGA_Conv_J10_LS')
 model_file_name_UPGA_J5_SC = model_file('UPGA_J5_SC')
 model_file_name_UPGA_J10_SC = model_file('UPGA_J10_SC')
-model_file_name_UPGA_J_GradReuse_SC = model_file('UPGA_J_GradReuse_SC')
+model_file_name_UPGA_J_GradReuse_SC = model_file('UPGA_J5_GradReuse_SC')
 
 # To save result figures
 directory_result = "./sim_results/" + system_config + "/"
@@ -255,7 +259,8 @@ def total_inner_layers(inner_iter_history):
 label_UPGA_J5_decay = r'Dynamic-UPGA'
 label_UPGA_J10_decay = r'Dynamic-UPGA'
 label_UPGA_J20_decay = r'Dynamic-UPGA'
-label_UPGA_J_GradReuse = r'GradReuse-UPGA, $600$ inner layers'
+label_UPGA_J_GradReuse_J5 = r'GradReuse-UPGA, $600$ inner layers'
+label_UPGA_J_GradReuse_J10 = r'GradReuse-UPGA, $1200$ inner layers'
 label_ZF = 'ZF (digital, comm. only)'
 label_SCA = 'SCA-ManOpt (converged)'
 label_PGA_Conv_J5_LS = r'Conv. PGA, $600$ inner iterations, line search'

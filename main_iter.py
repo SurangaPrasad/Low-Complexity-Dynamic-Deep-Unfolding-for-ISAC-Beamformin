@@ -110,7 +110,8 @@ def sync_run_flags_with_plot_data(namespace):
         'run_UPGA_J5_decay': ('rate_iter_UPGA_J5_decay', 'crb_iter_UPGA_J5_decay', 'inner_iter_history_UPGA_J5_decay'),
         'run_UPGA_J10_decay': ('rate_iter_UPGA_J10_decay', 'crb_iter_UPGA_J10_decay', 'inner_iter_history_UPGA_J10_decay'),
         'run_UPGA_J20_decay': ('rate_iter_UPGA_J20_decay', 'crb_iter_UPGA_J20_decay', 'inner_iter_history_UPGA_J20_decay'),
-        'run_UPGA_J_GradReuse': ('rate_iter_UPGA_J_GradReuse', 'crb_iter_UPGA_J_GradReuse'),
+        'run_UPGA_J_GradReuse_J5': ('rate_iter_UPGA_J_GradReuse_J5', 'crb_iter_UPGA_J_GradReuse_J5'),
+        'run_UPGA_J_GradReuse_J10': ('rate_iter_UPGA_J_GradReuse_J10', 'crb_iter_UPGA_J_GradReuse_J10'),
         'run_UPGA_J_GradReuse_SC': ('rate_iter_UPGA_J_GradReuse_SC', 'crb_iter_UPGA_J_GradReuse_SC'),
         'run_init_random': ('obj_iter_init_conv',),
         'run_init_svd': ('obj_iter_init_svd',),
@@ -387,29 +388,59 @@ if run_program == 1:
         rate_iter_UPGA_J10_SC = sum_rate_UPGA_J10_SC.squeeze().cpu().numpy()
         crb_iter_UPGA_J10_SC = crb_UPGA_J10_SC.squeeze().cpu().numpy()
 
-    if run_UPGA_J_GradReuse == 1:
+    if run_UPGA_J_GradReuse_J5 == 1:
         print('Running unfolded PGA with gradient reuse (J = 5)...')
-        model_UPGA_J_GradReuse = PGA_Unfold_J_GradReuse(step_size_UPGA_J5)
-        model_UPGA_J_GradReuse.load_state_dict(torch.load(load_model_file('UPGA_J_GradReuse'), map_location=device))
-        register_step_size('UPGA (J=5, GradReuse)', model_UPGA_J_GradReuse.step_size)
+        model_UPGA_J_GradReuse_J5 = PGA_Unfold_J_GradReuse(step_size_UPGA_J_GradReuse_J5)
+        ckpt_gr_j5 = load_model_file('UPGA_J5_GradReuse', init_scheme)
+        if not os.path.exists(ckpt_gr_j5):
+            print(f'  SKIP GradReuse J=5 | missing checkpoint {ckpt_gr_j5}')
+            run_UPGA_J_GradReuse_J5 = 0
+        else:
+            print(f'  Loading {ckpt_gr_j5}')
+            model_UPGA_J_GradReuse_J5.load_state_dict(torch.load(ckpt_gr_j5, map_location=device))
+            register_step_size('UPGA (J=5, GradReuse)', model_UPGA_J_GradReuse_J5.step_size)
 
-        sum_rate_UPGA_J_GradReuse, crb_UPGA_J_GradReuse, F_UPGA_J_GradReuse, W_UPGA_J_GradReuse, _ = model_UPGA_J_GradReuse.execute_PGA(
-            H_test, xi_0, theta_desire, R_N_inv, snr, n_iter_outer, n_iter_inner_J5
-        )
-        rate_iter_UPGA_J_GradReuse = sum_rate_UPGA_J_GradReuse.squeeze().cpu().numpy()
-        crb_iter_UPGA_J_GradReuse = crb_UPGA_J_GradReuse.squeeze().cpu().numpy()
+            sum_rate_UPGA_J_GradReuse_J5, crb_UPGA_J_GradReuse_J5, F_UPGA_J_GradReuse_J5, W_UPGA_J_GradReuse_J5, _ = model_UPGA_J_GradReuse_J5.execute_PGA(
+                H_test, xi_0, theta_desire, R_N_inv, snr, n_iter_outer, n_iter_inner_J5
+            )
+            rate_iter_UPGA_J_GradReuse_J5 = sum_rate_UPGA_J_GradReuse_J5.squeeze().cpu().numpy()
+            crb_iter_UPGA_J_GradReuse_J5 = crb_UPGA_J_GradReuse_J5.squeeze().cpu().numpy()
+
+    if run_UPGA_J_GradReuse_J10 == 1:
+        print('Running unfolded PGA with gradient reuse (J = 10)...')
+        model_UPGA_J_GradReuse_J10 = PGA_Unfold_J_GradReuse(step_size_UPGA_J_GradReuse_J10)
+        ckpt_gr_j10 = load_model_file('UPGA_J10_GradReuse', init_scheme)
+        if not os.path.exists(ckpt_gr_j10):
+            print(f'  SKIP GradReuse J=10 | missing checkpoint {ckpt_gr_j10}')
+            run_UPGA_J_GradReuse_J10 = 0
+        else:
+            print(f'  Loading {ckpt_gr_j10}')
+            model_UPGA_J_GradReuse_J10.load_state_dict(torch.load(ckpt_gr_j10, map_location=device))
+            register_step_size('UPGA (J=10, GradReuse)', model_UPGA_J_GradReuse_J10.step_size)
+
+            sum_rate_UPGA_J_GradReuse_J10, crb_UPGA_J_GradReuse_J10, F_UPGA_J_GradReuse_J10, W_UPGA_J_GradReuse_J10, _ = model_UPGA_J_GradReuse_J10.execute_PGA(
+                H_test, xi_0, theta_desire, R_N_inv, snr, n_iter_outer, n_iter_inner_J10
+            )
+            rate_iter_UPGA_J_GradReuse_J10 = sum_rate_UPGA_J_GradReuse_J10.squeeze().cpu().numpy()
+            crb_iter_UPGA_J_GradReuse_J10 = crb_UPGA_J_GradReuse_J10.squeeze().cpu().numpy()
 
     if run_UPGA_J_GradReuse_SC == 1:
         print('Running sub-connected unfolded PGA with gradient reuse (J = 5)...')
         model_UPGA_J_GradReuse_SC = PGA_Unfold_J_GradReuse_SC(step_size_UPGA_J_GradReuse_SC)
-        model_UPGA_J_GradReuse_SC.load_state_dict(torch.load(load_model_file('UPGA_J_GradReuse_SC'), map_location=device))
-        register_step_size('UPGA (J=5, GradReuse, sub-connected)', model_UPGA_J_GradReuse_SC.step_size)
+        ckpt_gr_sc = load_model_file('UPGA_J5_GradReuse_SC', init_scheme)
+        if not os.path.exists(ckpt_gr_sc):
+            print(f'  SKIP GradReuse-SC J=5 | missing checkpoint {ckpt_gr_sc}')
+            run_UPGA_J_GradReuse_SC = 0
+        else:
+            print(f'  Loading {ckpt_gr_sc}')
+            model_UPGA_J_GradReuse_SC.load_state_dict(torch.load(ckpt_gr_sc, map_location=device))
+            register_step_size('UPGA (J=5, GradReuse, sub-connected)', model_UPGA_J_GradReuse_SC.step_size)
 
-        sum_rate_UPGA_J_GradReuse_SC, crb_UPGA_J_GradReuse_SC, F_UPGA_J_GradReuse_SC, W_UPGA_J_GradReuse_SC, _ = model_UPGA_J_GradReuse_SC.execute_PGA(
-            H_test, xi_0, theta_desire, R_N_inv, snr, n_iter_outer, n_iter_inner_J5
-        )
-        rate_iter_UPGA_J_GradReuse_SC = sum_rate_UPGA_J_GradReuse_SC.squeeze().cpu().numpy()
-        crb_iter_UPGA_J_GradReuse_SC = crb_UPGA_J_GradReuse_SC.squeeze().cpu().numpy()
+            sum_rate_UPGA_J_GradReuse_SC, crb_UPGA_J_GradReuse_SC, F_UPGA_J_GradReuse_SC, W_UPGA_J_GradReuse_SC, _ = model_UPGA_J_GradReuse_SC.execute_PGA(
+                H_test, xi_0, theta_desire, R_N_inv, snr, n_iter_outer, n_iter_inner_J5
+            )
+            rate_iter_UPGA_J_GradReuse_SC = sum_rate_UPGA_J_GradReuse_SC.squeeze().cpu().numpy()
+            crb_iter_UPGA_J_GradReuse_SC = crb_UPGA_J_GradReuse_SC.squeeze().cpu().numpy()
 
     init_method_specs = [
         ('run_init_random', 'conv', ':d', 'gray', label_init_random),
@@ -433,10 +464,11 @@ if run_program == 1:
         ('run_UPGA_J20_decay', PGA_Unfold_JX_decay, step_size_UPGA_J20_decay, n_iter_inner_J20, 'UPGA_J20_decay', label_UPGA_J20_decay),
         ('run_PGA_Conv_J5_line_search', PGA_Conv_line_search, step_size_UPGA_J5, n_iter_inner_J5, None, label_PGA_Conv_J5_LS),
         ('run_PGA_Conv_J10_line_search', PGA_Conv_line_search, step_size_UPGA_J10, n_iter_inner_J10, None, label_PGA_Conv_J10_LS),
-        ('run_UPGA_J_GradReuse', PGA_Unfold_J_GradReuse, step_size_UPGA_J5, n_iter_inner_J5, 'UPGA_J_GradReuse', label_UPGA_J_GradReuse),
+        ('run_UPGA_J_GradReuse_J5', PGA_Unfold_J_GradReuse, step_size_UPGA_J_GradReuse_J5, n_iter_inner_J5, 'UPGA_J5_GradReuse', label_UPGA_J_GradReuse_J5),
+        ('run_UPGA_J_GradReuse_J10', PGA_Unfold_J_GradReuse, step_size_UPGA_J_GradReuse_J10, n_iter_inner_J10, 'UPGA_J10_GradReuse', label_UPGA_J_GradReuse_J10),
         ('run_UPGA_J5_SC', PGA_Unfold_Sub_Connected_JX, step_size_UPGA_J5_SC, n_iter_inner_J5, 'UPGA_J5_SC', label_UPGA_J5_SC),
         ('run_UPGA_J10_SC', PGA_Unfold_Sub_Connected_JX, step_size_UPGA_J10_SC, n_iter_inner_J10, 'UPGA_J10_SC', label_UPGA_J10_SC),
-        ('run_UPGA_J_GradReuse_SC', PGA_Unfold_J_GradReuse_SC, step_size_UPGA_J_GradReuse_SC, n_iter_inner_J5, 'UPGA_J_GradReuse_SC', label_UPGA_J_GradReuse_SC),
+        ('run_UPGA_J_GradReuse_SC', PGA_Unfold_J_GradReuse_SC, step_size_UPGA_J_GradReuse_SC, n_iter_inner_J5, 'UPGA_J5_GradReuse_SC', label_UPGA_J_GradReuse_SC),
         ('run_PGA_Conv_J5_LS_SC', PGA_Conv_line_search_sub_connected, step_size_UPGA_J5, n_iter_inner_J5, None, label_PGA_Conv_J5_LS_SC),
         ('run_PGA_Conv_J10_LS_SC', PGA_Conv_line_search_sub_connected, step_size_UPGA_J10, n_iter_inner_J10, None, label_PGA_Conv_J10_LS_SC),
     ]
@@ -577,8 +609,10 @@ if plot_figure == 1:
     # if run_UPGA_J20_decay == 1:
     #     curves.append((iter_outer_x_J20_decay, 1 / np.exp(crb_iter_UPGA_J20_decay[outer_idx_J20_decay]), '-', 'green', label_UPGA_J20_decay))
 
-    # if run_UPGA_J_GradReuse == 1:
-    #     curves.append((iter_outer_x, 1 / np.exp(crb_iter_UPGA_J_GradReuse[outer_idx_J_GradReuse]), ':^', 'teal', label_UPGA_J_GradReuse))
+    # if run_UPGA_J_GradReuse_J5 == 1:
+    #     curves.append((iter_outer_x, 1 / np.exp(crb_iter_UPGA_J_GradReuse_J5), ':^', 'teal', label_UPGA_J_GradReuse_J5))
+    # if run_UPGA_J_GradReuse_J10 == 1:
+    #     curves.append((iter_outer_x, 1 / np.exp(crb_iter_UPGA_J_GradReuse_J10), ':v', 'teal', label_UPGA_J_GradReuse_J10))
 
     # # Main plot
     # for x, y, style, color, label in curves:
@@ -669,9 +703,12 @@ if plot_figure == 1:
     if run_UPGA_J10_SC == 1:
         obj_iter_UPGA_J10_SC = OMEGA * rate_iter_UPGA_J10_SC + crb_iter_UPGA_J10_SC
         plt.plot(iter_outer_x, obj_iter_UPGA_J10_SC, '-*', markevery=5, color='purple', linewidth=3, markersize=7, label=label_UPGA_J10_SC)
-    if run_UPGA_J_GradReuse == 1:
-        obj_iter_UPGA_J_GradReuse = OMEGA * rate_iter_UPGA_J_GradReuse + crb_iter_UPGA_J_GradReuse
-        plt.plot(iter_outer_x, obj_iter_UPGA_J_GradReuse, '-^', markevery=5, color='olive', linewidth=3, markersize=7, label=label_UPGA_J_GradReuse)
+    if run_UPGA_J_GradReuse_J5 == 1:
+        obj_iter_UPGA_J_GradReuse_J5 = OMEGA * rate_iter_UPGA_J_GradReuse_J5 + crb_iter_UPGA_J_GradReuse_J5
+        plt.plot(iter_outer_x, obj_iter_UPGA_J_GradReuse_J5, '-^', markevery=5, color='olive', linewidth=3, markersize=7, label=label_UPGA_J_GradReuse_J5)
+    if run_UPGA_J_GradReuse_J10 == 1:
+        obj_iter_UPGA_J_GradReuse_J10 = OMEGA * rate_iter_UPGA_J_GradReuse_J10 + crb_iter_UPGA_J_GradReuse_J10
+        plt.plot(iter_outer_x, obj_iter_UPGA_J_GradReuse_J10, '-v', markevery=5, color='olive', linewidth=3, markersize=7, label=label_UPGA_J_GradReuse_J10)
     if run_UPGA_J_GradReuse_SC == 1:
         obj_iter_UPGA_J_GradReuse_SC = OMEGA * rate_iter_UPGA_J_GradReuse_SC + crb_iter_UPGA_J_GradReuse_SC
         plt.plot(iter_outer_x, obj_iter_UPGA_J_GradReuse_SC, '-x', markevery=5, color='magenta', linewidth=3, markersize=7, label=label_UPGA_J_GradReuse_SC)

@@ -188,7 +188,7 @@ def run_UPGA_gradreuse(step_size_UPGA):
         epoch_losses.append(avg_loss)
         print(f"Epoch [{i_epoch+1}/{n_epoch}], Average Loss: {avg_loss:.4f}")
 
-    save_path = model_file('UPGA_J_GradReuse')
+    save_path = model_file(f'UPGA_J{step_size_UPGA.shape[0]}_GradReuse')
     torch.save(model_UPGA_GR.state_dict(), save_path)
     print(f'Saved {save_path}')
 
@@ -230,7 +230,7 @@ def run_UPGA_gradreuse_sc(step_size_UPGA):
         print(f"  [GradReuse-SC fallback recomputations this epoch: "
               f"F/S={model_UPGA_GR_SC.grad_recalc_count}, W={model_UPGA_GR_SC.W_grad_recalc_count}]")
 
-    save_path = model_file('UPGA_J_GradReuse_SC')
+    save_path = model_file(f'UPGA_J{step_size_UPGA.shape[0]}_GradReuse_SC')
     torch.save(model_UPGA_GR_SC.state_dict(), save_path)
     print(f'Saved {save_path}')
 
@@ -284,8 +284,11 @@ if run_UPGA_J5_SC == 1:
 if run_UPGA_J10_SC == 1:
     run_UPGA_subconnected(step_size_UPGA_J10_SC)
 
-if run_UPGA_J_GradReuse == 1:
-    run_UPGA_gradreuse(step_size_UPGA_J5)
+if run_UPGA_J_GradReuse_J5 == 1:
+    run_UPGA_gradreuse(step_size_UPGA_J_GradReuse_J5)
+
+if run_UPGA_J_GradReuse_J10 == 1:
+    run_UPGA_gradreuse(step_size_UPGA_J_GradReuse_J10)
 
 if run_UPGA_J_GradReuse_SC == 1:
     run_UPGA_gradreuse_sc(step_size_UPGA_J_GradReuse_SC)
