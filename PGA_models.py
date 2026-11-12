@@ -516,12 +516,12 @@ class PGA_Unfold_J_GradReuse(nn.Module):
             # compute A_dot which has the minimum 1/CRLB for the given theta_desire_batch
             A_dot = compute_A_dot(H, F, W, xi_0, theta_desire_batch, R_N_inv, Pt)
 
+            # GradReuse uses data-dependent accept/reject branches, so activation
+            # checkpointing is unsafe (recompute can take a different branch count).
+            F = inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt)
             if track_metrics:
-                F = inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt)
                 rate_over_iters[ii, 0] = get_sum_rate(H, F, W, Pt).detach()
                 crb_over_iters[ii, 0] = get_crb_fe(H, F, W, xi_0, A_dot, R_N_inv, Pt).detach()
-            else:
-                F = checkpoint(inner_f_update, F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt, use_reentrant=False)
 
             # ---- W update: reuse attempt, else same as PGA_Unfold_JX ----
             w_reuse_accepted = False
@@ -791,10 +791,9 @@ class PGA_Unfold_J_GradReuse_SC(nn.Module):
 
             A_dot = compute_A_dot(H, F * S, W, xi_0, theta_desire_batch, R_N_inv, Pt)
 
-            if track_metrics:
-                F, S = inner_fs_update(F, S, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt)
-            else:
-                F, S = checkpoint(inner_fs_update, F, S, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt, use_reentrant=False)
+            # GradReuse uses data-dependent accept/reject branches, so activation
+            # checkpointing is unsafe (recompute can take a different branch count).
+            F, S = inner_fs_update(F, S, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt)
 
             F_eff = F * S
 
