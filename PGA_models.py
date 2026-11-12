@@ -383,7 +383,7 @@ class PGA_Unfold_JX(nn.Module):
                 delta_F_com = self.step_size[jj][ii][0] * grad_F_com
                 delta_F_crb = self.step_size[jj][ii][0] * grad_F_crb
                 F = ( F + delta_F_com * WEIGHT_F_COM + delta_F_crb * WEIGHT_F_CRB )
-                F = normalize_power(F, W, H, Pt)
+                F = project_unit_modulus(F)
             return F
 
         for ii in range(n_iter_outer):
@@ -399,7 +399,6 @@ class PGA_Unfold_JX(nn.Module):
             else:
                 F = checkpoint(inner_f_update,F,W,H,xi_0,A_dot,R_N_inv, n_inner, Pt, use_reentrant=False)
 
-            F = project_unit_modulus(F)
             grad_W_k_com = get_grad_W_com(H, F, W)
             grad_W_k_crb = get_grad_W_crb(F, W, xi_0, A_dot, R_N_inv)
             grad_J_w = grad_W_k_com * WEIGHT_W_COM + grad_W_k_crb * WEIGHT_W_CRB
@@ -486,7 +485,7 @@ class PGA_Unfold_J_GradReuse(nn.Module):
                     delta_F_com = self.step_size[jj][ii][0] * prev_grad_F_com
                     delta_F_crb = self.step_size[jj][ii][0] * prev_grad_F_crb
                     F_trial = (F + delta_F_com * WEIGHT_F_COM + delta_F_crb * WEIGHT_F_CRB)
-                    F_trial = normalize_power(F_trial, W, H, Pt)
+                    F_trial = project_unit_modulus(F_trial)
                     with torch.no_grad():
                         obj_trial = combined_obj(F_trial, W, A_dot, WEIGHT_F_COM, WEIGHT_F_CRB)
                     if obj_trial > prev_obj:
@@ -504,7 +503,7 @@ class PGA_Unfold_J_GradReuse(nn.Module):
                 delta_F_com = self.step_size[jj][ii][0] * grad_F_com
                 delta_F_crb = self.step_size[jj][ii][0] * grad_F_crb
                 F = (F + delta_F_com * WEIGHT_F_COM + delta_F_crb * WEIGHT_F_CRB)
-                F = normalize_power(F, W, H, Pt)
+                F = project_unit_modulus(F)
                 prev_grad_F_com = grad_F_com.detach()
                 prev_grad_F_crb = grad_F_crb.detach()
                 with torch.no_grad():
@@ -524,18 +523,12 @@ class PGA_Unfold_J_GradReuse(nn.Module):
             else:
                 F = checkpoint(inner_f_update, F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt, use_reentrant=False)
 
-            F = project_unit_modulus(F)
-
             # ---- W update: reuse attempt, else same as PGA_Unfold_JX ----
             w_reuse_accepted = False
             if ii > 0 and prev_grad_W_com is not None:
                 with torch.no_grad():
                     obj_preW = combined_obj(F, W, A_dot, WEIGHT_W_COM, WEIGHT_W_CRB)
-                W_trial_new = (
-                    W
-                    + self.step_size[0][ii][1] * prev_grad_W_com * WEIGHT_W_COM
-                    + self.step_size[0][ii][1] * prev_grad_W_crb * WEIGHT_W_CRB
-                )
+                W_trial_new = (W + self.step_size[0][ii][1] * prev_grad_W_com * WEIGHT_W_COM + self.step_size[0][ii][1] * prev_grad_W_crb * WEIGHT_W_CRB)
                 F_wt, W_trial = normalize(F, W_trial_new, H, Pt)
                 with torch.no_grad():
                     obj_wt = combined_obj(F_wt, W_trial, A_dot, WEIGHT_W_COM, WEIGHT_W_CRB)
@@ -642,7 +635,6 @@ class PGA_Unfold_Sub_Connected_JX(nn.Module):
 
                 F = F + self.step_size[jj][ii][0] * grad_F
                 F = project_unit_modulus(F)
-                F = normalize_power(F, W, H, Pt)
 
                 S = S + self.step_size[jj][ii][1] * grad_S
                 S = project_to_simplex_rows(S)
@@ -658,7 +650,6 @@ class PGA_Unfold_Sub_Connected_JX(nn.Module):
             else:
                 F, S = checkpoint(inner_fs_update, F, S, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt, use_reentrant=False)
 
-            F = project_unit_modulus(F)
             F_eff = F * S
             grad_W_k_com = get_grad_W_com(H, F_eff, W)
             grad_W_k_crb = get_grad_W_crb(F_eff, W, xi_0, A_dot, R_N_inv)
@@ -764,7 +755,6 @@ class PGA_Unfold_J_GradReuse_SC(nn.Module):
                     grad_S = 2.0 * torch.real(torch.conj(F) * prev_grad_F_eff)
                     F_trial = F + self.step_size[jj][ii][0] * grad_F
                     F_trial = project_unit_modulus(F_trial)
-                    F_trial = normalize_power(F_trial, W, H, Pt)
                     S_trial = project_to_simplex_rows(S + self.step_size[jj][ii][1] * grad_S)
                     with torch.no_grad():
                         obj_trial = combined_obj(F_trial, S_trial, W, A_dot, WEIGHT_F_COM, WEIGHT_F_CRB)
@@ -787,7 +777,6 @@ class PGA_Unfold_J_GradReuse_SC(nn.Module):
 
                 F = F + self.step_size[jj][ii][0] * grad_F
                 F = project_unit_modulus(F)
-                F = normalize_power(F, W, H, Pt)
 
                 S = S + self.step_size[jj][ii][1] * grad_S
                 S = project_to_simplex_rows(S)
@@ -807,7 +796,6 @@ class PGA_Unfold_J_GradReuse_SC(nn.Module):
             else:
                 F, S = checkpoint(inner_fs_update, F, S, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt, use_reentrant=False)
 
-            F = project_unit_modulus(F)
             F_eff = F * S
 
             # ---- W update: reuse attempt, else same as Sub_Connected_JX ----
@@ -815,11 +803,7 @@ class PGA_Unfold_J_GradReuse_SC(nn.Module):
             if ii > 0 and prev_grad_W_com is not None:
                 with torch.no_grad():
                     obj_preW = combined_obj(F, S, W, A_dot, WEIGHT_W_COM, WEIGHT_W_CRB)
-                W_trial_new = (
-                    W
-                    + self.step_size[0][ii][2] * prev_grad_W_com * WEIGHT_W_COM
-                    + self.step_size[0][ii][2] * prev_grad_W_crb * WEIGHT_W_CRB
-                )
+                W_trial_new = (W + self.step_size[0][ii][2] * prev_grad_W_com * WEIGHT_W_COM + self.step_size[0][ii][2] * prev_grad_W_crb * WEIGHT_W_CRB)
                 F_wt, W_trial = normalize(F, W_trial_new, H, Pt)
                 with torch.no_grad():
                     obj_wt = combined_obj(F_wt, S, W_trial, A_dot, WEIGHT_W_COM, WEIGHT_W_CRB)
@@ -873,33 +857,41 @@ class PGA_Unfold_J_GradReuse_SC(nn.Module):
 
 # ============================================== Unfolded PGA with decaying inner iterations ==============================
 class PGA_Unfold_JX_decay(nn.Module):
-    """Same as ``PGA_Unfold_JX``, plus an inexact F-block residual early stop.
+    """Same as ``PGA_Unfold_JX``, with adaptive inner depth per outer layer.
 
-    Inner PGA on F is identical to ``PGA_Unfold_JX`` except it may stop early when:
+    At the start of outer layer ``i``, form the analog ISAC gradient and set
 
-        ||∇_F J(F_{i,j}, W_i)||  ≤  η  ||∇_F J(F_i, W_i)||
+        g^F  = mean(||∇_F g||_F)          # raw Frobenius mean over the batch
+        Jhat = clip(ceil(alpha * g^F), J_min, J_max)
 
-    for ``jj >= J_min``, otherwise it runs the full ``J_max`` layers.
+    then run exactly ``Jhat`` inner analog updates (no mid-loop early stop).
+    Tune ``alpha`` so early residuals map near ``J_max`` and late ones near ``J_min``.
     """
 
-    def __init__(self, step_size, alpha=0.04, eps=1e-12, J_min=2, eta=0.95, eta_temperature=0.05):
+    def __init__(self, step_size, alpha=4.0, eps=1e-12, J_min=2, eta=0.95, eta_temperature=0.05):
         super().__init__()
 
         self.step_size = nn.Parameter(step_size)  # parameters = (mu, lambda)
-        eta_device = step_size.device if torch.is_tensor(step_size) else torch.device('cpu')
-        self.eta = nn.Parameter(torch.tensor(float(eta), dtype=REAL_DTYPE, device=eta_device))
         self.inner_iter_history = []
         self.eps = eps
         self.J_min = J_min
+        self.alpha = alpha
+        # Kept so older call sites / checkpoints that pass eta stay valid.
+        self.eta = eta
         self.eta_temperature = eta_temperature
-        self.alpha = alpha  # unused; kept so existing call sites stay valid
 
     def load_state_dict(self, state_dict, strict=True):
-        # Older decay checkpoints only store step_size; keep the default eta.
-        if 'eta' not in state_dict:
-            state_dict = dict(state_dict)
-            state_dict['eta'] = self.eta.detach().clone()
+        # Drop trainable-eta keys from older decay checkpoints.
+        if any(k == 'eta' or k.endswith('.eta') for k in state_dict):
+            state_dict = {k: v for k, v in state_dict.items() if k != 'eta' and not k.endswith('.eta')}
         return super().load_state_dict(state_dict, strict=strict)
+
+    def _n_inner_from_grad(self, grad_F_J):
+        J_max = self.step_size.shape[0]
+        J_min = min(self.J_min, J_max)
+        g_F = torch.linalg.matrix_norm(grad_F_J, ord='fro').mean()
+        n_inner = int(torch.ceil(self.alpha * g_F).item())
+        return max(J_min, min(J_max, n_inner))
 
     # =========== Projection Gradient Ascent execution ===================
     def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True, init_method=None):
@@ -914,54 +906,30 @@ class PGA_Unfold_JX_decay(nn.Module):
         W_over_iters = []
         A_dot_over_iters = []
         self.inner_iter_history = []
-        n_used_holder = [0]
 
         def inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt):
-            J_min = min(self.J_min, n_inner)
-            g0 = None
-            n_used = 0
-            eta = self.eta.clamp(1e-4, 1.0)
-
             for jj in range(n_inner):
                 grad_F_com = get_grad_F_com(H, F, W)
                 grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
                 if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
                     print('Error NaN gradients!!!!!!!!!!!!!!!')
-
-                grad_F_J = WEIGHT_F_COM * grad_F_com + WEIGHT_F_CRB * grad_F_crb
-                g = torch.linalg.matrix_norm(grad_F_J, ord='fro').mean()
-
-                if jj == 0:
-                    g0 = g.detach()
-                    gate = None
-                elif jj >= J_min:
-                    if track_metrics:
-                        if (g <= eta * g0).item():
-                            break
-                        gate = None
-                    else:
-                        gate = torch.sigmoid((g.detach() - eta * g0) / self.eta_temperature)
-                else:
-                    gate = None
-
-                delta_F = (
-                    self.step_size[jj][ii][0] * grad_F_com * WEIGHT_F_COM
-                    + self.step_size[jj][ii][0] * grad_F_crb * WEIGHT_F_CRB
-                )
-                if gate is not None:
-                    delta_F = gate * delta_F
-                F = F + delta_F
-                F = normalize_power(F, W, H, Pt)
-                n_used = jj + 1
-
-            n_used_holder[0] = n_used
+                delta_F_com = self.step_size[jj][ii][0] * grad_F_com
+                delta_F_crb = self.step_size[jj][ii][0] * grad_F_crb
+                F = (F + delta_F_com * WEIGHT_F_COM + delta_F_crb * WEIGHT_F_CRB)
+                F = project_unit_modulus(F)
             return F
 
         for ii in range(n_iter_outer):
-            n_inner = self.step_size.shape[0]
-
             # compute A_dot which has the minimum 1/CRLB for the given theta_desire_batch
             A_dot = compute_A_dot(H, F, W, xi_0, theta_desire_batch, R_N_inv, Pt)
+
+            grad_F_com = get_grad_F_com(H, F, W)
+            grad_F_crb = get_grad_F_crb(F, W, xi_0, A_dot, R_N_inv)
+            if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
+                print('Error NaN gradients before adaptive J!!!!!!!!!!!!!!!')
+            grad_F_J = WEIGHT_F_COM * grad_F_com + WEIGHT_F_CRB * grad_F_crb
+            n_inner = self._n_inner_from_grad(grad_F_J)
+            self.inner_iter_history.append(n_inner)
 
             if track_metrics:
                 F = inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt)
@@ -970,9 +938,6 @@ class PGA_Unfold_JX_decay(nn.Module):
             else:
                 F = checkpoint(inner_f_update, F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt, use_reentrant=False)
 
-            self.inner_iter_history.append(n_used_holder[0])
-
-            F = project_unit_modulus(F)
             grad_W_k_com = get_grad_W_com(H, F, W)
             grad_W_k_crb = get_grad_W_crb(F, W, xi_0, A_dot, R_N_inv)
             grad_J_w = grad_W_k_com * WEIGHT_W_COM + grad_W_k_crb * WEIGHT_W_CRB

@@ -18,8 +18,8 @@ run_conv_PGA_J20 = 0
 run_conv_PGA_J10_PC = 0    # Conventional PGA with J = 10 and partial coupling (PC) 
 run_UPGA_J1 = 0            # Unfolded PGA without any modification (J = 1)
 run_UPGA_J4 = 0
-run_UPGA_J5 = 1            # Unfolded PGA with setting J = 5
-run_UPGA_J6 = 1            # Unfolded PGA with setting J = 6 (for ablation on inner iteration number)
+run_UPGA_J5 = 0            # Unfolded PGA with setting J = 5
+run_UPGA_J6 = 0            # Unfolded PGA with setting J = 6 (for ablation on inner iteration number)
 run_UPGA_J10 = 0           # Unfolded PGA with setting J = 10
 run_UPGA_J20 = 0           # Unfolded PGA with setting J = 20
 
@@ -35,13 +35,13 @@ run_PGA_Conv_J10_LS_SC = 0           # Sub-connected conv. PGA with line search 
 
 run_UPGA_J5_SC = 0                   # Sub-connected UPGA (fixed-block S init, J = 5)
 run_UPGA_J10_SC = 0                  # Sub-connected UPGA (fixed-block S init, J = 10)
-run_UPGA_J_GradReuse = 0             # Unfolded PGA with lazy gradient reuse (J = 5)
+run_UPGA_J_GradReuse = 1             # Unfolded PGA with lazy gradient reuse (J = 5)
 run_UPGA_J_GradReuse_SC = 0          # Sub-connected UPGA with lazy gradient reuse (J = 5)
 
 run_init_random = 0                  # Random unit-modulus analog init
-run_init_svd = 1                     # SVD of H analog init
-run_init_prop = 1                    # Proposed (PE-AltMin analog) init
-run_init_isac_eigen = 1              # ISAC-eigen analog init
+run_init_svd = 0                     # SVD of H analog init
+run_init_prop = 0                    # Proposed (PE-AltMin analog) init
+run_init_isac_eigen = 0              # ISAC-eigen analog init
 
 
 # ////////////////////////////////////////////// SYSTEM PARAMS //////////////////////////////////////////////
