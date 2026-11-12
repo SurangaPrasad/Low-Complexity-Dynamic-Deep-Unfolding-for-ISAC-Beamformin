@@ -781,9 +781,13 @@ if plot_figure == 1:
         or (run_UPGA_J_GradReuse_J10 == 1)
         or (run_UPGA_J_GradReuse_J10_untrained == 1)
         or (run_UPGA_J_GradReuse_J10_noguard == 1)
+        or (run_conv_PGA_J10 == 1)
     )
     if plot_gradreuse_fig:
         plt.figure(figsize=(8, 5.2))
+        if run_conv_PGA_J10 == 1:
+            obj_conv_j10 = OMEGA * rate_iter_conv_PGA_J10 + crb_iter_conv_PGA_J10
+            plt.plot(iter_outer_x, obj_conv_j10, ':d', markevery=5, color='blue', linewidth=3, markersize=7, label=Conv_PGA_J10)
         if run_UPGA_J10 == 1:
             obj_fixed_j10 = OMEGA * rate_iter_UPGA_J10 + crb_iter_UPGA_J10
             plt.plot(iter_outer_x, obj_fixed_j10, '--o', markevery=5, color='red', linewidth=3, markersize=7, label=label_UPGA_J10)
