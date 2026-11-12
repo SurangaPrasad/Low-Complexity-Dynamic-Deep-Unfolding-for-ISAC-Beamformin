@@ -429,20 +429,22 @@ class PGA_Unfold_J_GradReuse(nn.Module):
 
     F inner steps (per outer iteration ``ii``):
       jj = 0  : always compute a fresh gradient (same as ``PGA_Unfold_JX``).
-      jj >= 1 : propose ``F_trial`` with the stored gradient; accept if the
-                combined objective increases, otherwise recompute and step.
+      jj >= 1 : propose ``F_trial`` with the stored gradient; if
+                ``objective_guard`` is True, accept only when the objective
+                increases, otherwise recompute; if False, always reuse.
 
     W outer steps:
       ii = 0  : always compute a fresh gradient (same as ``PGA_Unfold_JX``).
-      ii >= 1 : propose ``W_trial`` with the stored W gradient; accept if the
-                objective increases, otherwise recompute and step.
+      ii >= 1 : propose ``W_trial`` with the stored W gradient; same guard
+                policy as for F.
     """
 
-    def __init__(self, step_size, alpha=0.01):
+    def __init__(self, step_size, alpha=0.01, objective_guard=True):
         super().__init__()
         self.step_size = nn.Parameter(step_size)
         self.inner_iter_history = []
         self.alpha = alpha
+        self.objective_guard = objective_guard
         self.grad_recalc_count = 0
         self.W_grad_recalc_count = 0
         self.rho_F = 0.0  # fraction of accepted analog reuse attempts
@@ -488,11 +490,15 @@ class PGA_Unfold_J_GradReuse(nn.Module):
                     delta_F_crb = self.step_size[jj][ii][0] * prev_grad_F_crb
                     F_trial = (F + delta_F_com * WEIGHT_F_COM + delta_F_crb * WEIGHT_F_CRB)
                     F_trial = project_unit_modulus(F_trial)
-                    with torch.no_grad():
-                        obj_trial = combined_obj(F_trial, W, A_dot, WEIGHT_F_COM, WEIGHT_F_CRB)
-                    if obj_trial > prev_obj:
+                    accept_reuse = True
+                    if self.objective_guard:
+                        with torch.no_grad():
+                            obj_trial = combined_obj(F_trial, W, A_dot, WEIGHT_F_COM, WEIGHT_F_CRB)
+                        accept_reuse = obj_trial > prev_obj
+                        if accept_reuse:
+                            prev_obj = obj_trial
+                    if accept_reuse:
                         F = F_trial
-                        prev_obj = obj_trial
                         continue
 
                     grad_F_com = get_grad_F_com(H, F, W)
@@ -508,8 +514,9 @@ class PGA_Unfold_J_GradReuse(nn.Module):
                 F = project_unit_modulus(F)
                 prev_grad_F_com = grad_F_com.detach()
                 prev_grad_F_crb = grad_F_crb.detach()
-                with torch.no_grad():
-                    prev_obj = combined_obj(F, W, A_dot, WEIGHT_F_COM, WEIGHT_F_CRB)
+                if self.objective_guard:
+                    with torch.no_grad():
+                        prev_obj = combined_obj(F, W, A_dot, WEIGHT_F_COM, WEIGHT_F_CRB)
             return F
 
         for ii in range(n_iter_outer):
@@ -528,13 +535,15 @@ class PGA_Unfold_J_GradReuse(nn.Module):
             # ---- W update: reuse attempt, else same as PGA_Unfold_JX ----
             w_reuse_accepted = False
             if ii > 0 and prev_grad_W_com is not None:
-                with torch.no_grad():
-                    obj_preW = combined_obj(F, W, A_dot, WEIGHT_W_COM, WEIGHT_W_CRB)
                 W_trial_new = (W + self.step_size[0][ii][1] * prev_grad_W_com * WEIGHT_W_COM + self.step_size[0][ii][1] * prev_grad_W_crb * WEIGHT_W_CRB)
                 F_wt, W_trial = normalize(F, W_trial_new, H, Pt)
-                with torch.no_grad():
-                    obj_wt = combined_obj(F_wt, W_trial, A_dot, WEIGHT_W_COM, WEIGHT_W_CRB)
-                if obj_wt > obj_preW:
+                accept_w_reuse = True
+                if self.objective_guard:
+                    with torch.no_grad():
+                        obj_preW = combined_obj(F, W, A_dot, WEIGHT_W_COM, WEIGHT_W_CRB)
+                        obj_wt = combined_obj(F_wt, W_trial, A_dot, WEIGHT_W_COM, WEIGHT_W_CRB)
+                    accept_w_reuse = obj_wt > obj_preW
+                if accept_w_reuse:
                     F, W = F_wt, W_trial
                     w_reuse_accepted = True
                 else:
@@ -564,9 +573,10 @@ class PGA_Unfold_J_GradReuse(nn.Module):
         self.rho_F = float(1.0 - grad_recalc / max(max_possible_F, 1))
         self.rho_W = float(1.0 - W_grad_recalc / max(max_possible_W, 1))
         if track_metrics:
-            print(f'[GradReuse] F fallback recomputations = {grad_recalc} / {max_possible_F} '
+            guard_tag = 'guard' if self.objective_guard else 'no-guard'
+            print(f'[GradReuse/{guard_tag}] F fallback recomputations = {grad_recalc} / {max_possible_F} '
                   f'({100.0 * grad_recalc / max(max_possible_F, 1):.1f}%), rho_F={self.rho_F:.3f}')
-            print(f'[GradReuse] W fallback recomputations = {W_grad_recalc} / {max_possible_W} '
+            print(f'[GradReuse/{guard_tag}] W fallback recomputations = {W_grad_recalc} / {max_possible_W} '
                   f'({100.0 * W_grad_recalc / max(max_possible_W, 1):.1f}%), rho_W={self.rho_W:.3f}')
 
         ## average over the batch

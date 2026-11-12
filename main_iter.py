@@ -114,6 +114,8 @@ def sync_run_flags_with_plot_data(namespace):
         'run_UPGA_J20_decay': ('rate_iter_UPGA_J20_decay', 'crb_iter_UPGA_J20_decay', 'inner_iter_history_UPGA_J20_decay'),
         'run_UPGA_J_GradReuse_J5': ('rate_iter_UPGA_J_GradReuse_J5', 'crb_iter_UPGA_J_GradReuse_J5'),
         'run_UPGA_J_GradReuse_J10': ('rate_iter_UPGA_J_GradReuse_J10', 'crb_iter_UPGA_J_GradReuse_J10'),
+        'run_UPGA_J_GradReuse_J10_untrained': ('rate_iter_UPGA_J_GradReuse_J10_untrained', 'crb_iter_UPGA_J_GradReuse_J10_untrained'),
+        'run_UPGA_J_GradReuse_J10_noguard': ('rate_iter_UPGA_J_GradReuse_J10_noguard', 'crb_iter_UPGA_J_GradReuse_J10_noguard'),
         'run_UPGA_J_GradReuse_SC': ('rate_iter_UPGA_J_GradReuse_SC', 'crb_iter_UPGA_J_GradReuse_SC'),
         'run_init_random': ('obj_iter_init_conv',),
         'run_init_svd': ('obj_iter_init_svd',),
@@ -430,6 +432,43 @@ if run_program == 1:
             rho_F_UPGA_J_GradReuse_J10 = float(model_UPGA_J_GradReuse_J10.rho_F)
             rho_W_UPGA_J_GradReuse_J10 = float(model_UPGA_J_GradReuse_J10.rho_W)
 
+    if run_UPGA_J_GradReuse_J10_untrained == 1:
+        print('Running GradReuse with fixed (untrained) step sizes (J = 10)...')
+        model_UPGA_J_GradReuse_J10_untrained = PGA_Unfold_J_GradReuse(
+            step_size_UPGA_J_GradReuse_J10_untrained.clone().detach().requires_grad_(False),
+            objective_guard=True,
+        )
+        register_step_size('UPGA (J=10, GradReuse, untrained steps)', model_UPGA_J_GradReuse_J10_untrained.step_size)
+        sum_rate_UPGA_J_GradReuse_J10_untrained, crb_UPGA_J_GradReuse_J10_untrained, *_ = model_UPGA_J_GradReuse_J10_untrained.execute_PGA(
+            H_test, xi_0, theta_desire, R_N_inv, snr, n_iter_outer, n_iter_inner_J10
+        )
+        rate_iter_UPGA_J_GradReuse_J10_untrained = sum_rate_UPGA_J_GradReuse_J10_untrained.squeeze().cpu().numpy()
+        crb_iter_UPGA_J_GradReuse_J10_untrained = crb_UPGA_J_GradReuse_J10_untrained.squeeze().cpu().numpy()
+        rho_F_UPGA_J_GradReuse_J10_untrained = float(model_UPGA_J_GradReuse_J10_untrained.rho_F)
+        rho_W_UPGA_J_GradReuse_J10_untrained = float(model_UPGA_J_GradReuse_J10_untrained.rho_W)
+
+    if run_UPGA_J_GradReuse_J10_noguard == 1:
+        print('Running GradReuse with trained steps and no objective guard (J = 10)...')
+        model_UPGA_J_GradReuse_J10_noguard = PGA_Unfold_J_GradReuse(
+            step_size_UPGA_J_GradReuse_J10_noguard, objective_guard=False
+        )
+        ckpt_gr_j10_ng = load_model_file('UPGA_J10_GradReuse', init_scheme)
+        if not os.path.exists(ckpt_gr_j10_ng):
+            print(f'  SKIP GradReuse no-guard J=10 | missing checkpoint {ckpt_gr_j10_ng}')
+            run_UPGA_J_GradReuse_J10_noguard = 0
+        else:
+            print(f'  Loading {ckpt_gr_j10_ng}')
+            model_UPGA_J_GradReuse_J10_noguard.load_state_dict(torch.load(ckpt_gr_j10_ng, map_location=device))
+            model_UPGA_J_GradReuse_J10_noguard.objective_guard = False
+            register_step_size('UPGA (J=10, GradReuse, no guard)', model_UPGA_J_GradReuse_J10_noguard.step_size)
+            sum_rate_UPGA_J_GradReuse_J10_noguard, crb_UPGA_J_GradReuse_J10_noguard, *_ = model_UPGA_J_GradReuse_J10_noguard.execute_PGA(
+                H_test, xi_0, theta_desire, R_N_inv, snr, n_iter_outer, n_iter_inner_J10
+            )
+            rate_iter_UPGA_J_GradReuse_J10_noguard = sum_rate_UPGA_J_GradReuse_J10_noguard.squeeze().cpu().numpy()
+            crb_iter_UPGA_J_GradReuse_J10_noguard = crb_UPGA_J_GradReuse_J10_noguard.squeeze().cpu().numpy()
+            rho_F_UPGA_J_GradReuse_J10_noguard = float(model_UPGA_J_GradReuse_J10_noguard.rho_F)
+            rho_W_UPGA_J_GradReuse_J10_noguard = float(model_UPGA_J_GradReuse_J10_noguard.rho_W)
+
     if run_UPGA_J_GradReuse_SC == 1:
         print('Running sub-connected unfolded PGA with gradient reuse (J = 5)...')
         model_UPGA_J_GradReuse_SC = PGA_Unfold_J_GradReuse_SC(step_size_UPGA_J_GradReuse_SC)
@@ -717,6 +756,12 @@ if plot_figure == 1:
     if run_UPGA_J_GradReuse_J10 == 1:
         obj_iter_UPGA_J_GradReuse_J10 = OMEGA * rate_iter_UPGA_J_GradReuse_J10 + crb_iter_UPGA_J_GradReuse_J10
         plt.plot(iter_outer_x, obj_iter_UPGA_J_GradReuse_J10, '-v', markevery=5, color='olive', linewidth=3, markersize=7, label=label_UPGA_J_GradReuse_J10)
+    if run_UPGA_J_GradReuse_J10_untrained == 1:
+        obj_iter_UPGA_J_GradReuse_J10_untrained = OMEGA * rate_iter_UPGA_J_GradReuse_J10_untrained + crb_iter_UPGA_J_GradReuse_J10_untrained
+        plt.plot(iter_outer_x, obj_iter_UPGA_J_GradReuse_J10_untrained, '-.s', markevery=5, color='teal', linewidth=3, markersize=7, label=label_UPGA_J_GradReuse_J10_untrained)
+    if run_UPGA_J_GradReuse_J10_noguard == 1:
+        obj_iter_UPGA_J_GradReuse_J10_noguard = OMEGA * rate_iter_UPGA_J_GradReuse_J10_noguard + crb_iter_UPGA_J_GradReuse_J10_noguard
+        plt.plot(iter_outer_x, obj_iter_UPGA_J_GradReuse_J10_noguard, ':d', markevery=5, color='brown', linewidth=3, markersize=7, label=label_UPGA_J_GradReuse_J10_noguard)
     if run_UPGA_J_GradReuse_SC == 1:
         obj_iter_UPGA_J_GradReuse_SC = OMEGA * rate_iter_UPGA_J_GradReuse_SC + crb_iter_UPGA_J_GradReuse_SC
         plt.plot(iter_outer_x, obj_iter_UPGA_J_GradReuse_SC, '-x', markevery=5, color='magenta', linewidth=3, markersize=7, label=label_UPGA_J_GradReuse_SC)
@@ -729,82 +774,39 @@ if plot_figure == 1:
     plt.savefig(directory_result + 'objective_vs_iter_' + str(Nt) + '_' + str(OMEGA) + '.png',bbox_inches='tight',pad_inches=0.02)
     plt.savefig(directory_result + 'objective_vs_iter_' + str(Nt) + '_' + str(OMEGA) + '.eps',bbox_inches='tight',pad_inches=0.02)
 
-    # ===================== Fig.5 GradReuse: objective + avoided gradients (C2) =====================
-    gradreuse_enabled = (
-        (run_UPGA_J_GradReuse_J5 == 1)
+    # ===================== Fig.5 GradReuse: objective vs I (C2 ablations, J=10) =====================
+    # Curves: Fixed-UPGA J10, GradReuse J10, untrained-step GradReuse, no-guard GradReuse.
+    plot_gradreuse_fig = (
+        (run_UPGA_J10 == 1)
         or (run_UPGA_J_GradReuse_J10 == 1)
-        or (run_UPGA_J_GradReuse_SC == 1)
+        or (run_UPGA_J_GradReuse_J10_untrained == 1)
+        or (run_UPGA_J_GradReuse_J10_noguard == 1)
     )
-    if gradreuse_enabled:
-        fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.4))
-
-        # (a) Objective vs outer layers: Fixed-UPGA vs GradReuse-UPGA
-        ax0 = axes[0]
-        if run_UPGA_J5 == 1:
-            obj_fixed_j5 = OMEGA * rate_iter_UPGA_J5 + crb_iter_UPGA_J5
-            ax0.plot(iter_outer_x, obj_fixed_j5, '--d', markevery=5, color='red', linewidth=3, markersize=7, label=label_UPGA_J5)
+    if plot_gradreuse_fig:
+        plt.figure(figsize=(8, 5.2))
         if run_UPGA_J10 == 1:
             obj_fixed_j10 = OMEGA * rate_iter_UPGA_J10 + crb_iter_UPGA_J10
-            ax0.plot(iter_outer_x, obj_fixed_j10, '--o', markevery=5, color='red', linewidth=3, markersize=7, label=label_UPGA_J10)
-        if run_UPGA_J_GradReuse_J5 == 1:
-            obj_gr_j5 = OMEGA * rate_iter_UPGA_J_GradReuse_J5 + crb_iter_UPGA_J_GradReuse_J5
-            ax0.plot(iter_outer_x, obj_gr_j5, '-^', markevery=5, color='olive', linewidth=3, markersize=7, label=label_UPGA_J_GradReuse_J5)
+            plt.plot(iter_outer_x, obj_fixed_j10, '--o', markevery=5, color='red', linewidth=3, markersize=7, label=label_UPGA_J10)
         if run_UPGA_J_GradReuse_J10 == 1:
             obj_gr_j10 = OMEGA * rate_iter_UPGA_J_GradReuse_J10 + crb_iter_UPGA_J_GradReuse_J10
-            ax0.plot(iter_outer_x, obj_gr_j10, '-v', markevery=5, color='olive', linewidth=3, markersize=7, label=label_UPGA_J_GradReuse_J10)
-        if run_UPGA_J_GradReuse_SC == 1:
-            obj_gr_sc = OMEGA * rate_iter_UPGA_J_GradReuse_SC + crb_iter_UPGA_J_GradReuse_SC
-            ax0.plot(iter_outer_x, obj_gr_sc, '-x', markevery=5, color='magenta', linewidth=3, markersize=7, label=label_UPGA_J_GradReuse_SC)
-        ax0.set_xlabel(r'Outer-layer index, $i$', fontsize=13)
-        ax0.set_ylabel(r'$\omega R + \log(\mathrm{CRLB}^{-1})$', fontsize=13)
-        ax0.grid(True)
-        ax0.set_title('(a)', fontsize=13)
-        ax0.legend(loc='best', fontsize=10, frameon=False)
-
-        # (b) Avoided-gradient fractions rho_F and rho_W
-        ax1 = axes[1]
-        rho_groups = []
-        if run_UPGA_J_GradReuse_J5 == 1 and 'rho_F_UPGA_J_GradReuse_J5' in globals():
-            rho_groups.append(('J=5', float(np.asarray(rho_F_UPGA_J_GradReuse_J5).reshape(-1)[0]),
-                               float(np.asarray(rho_W_UPGA_J_GradReuse_J5).reshape(-1)[0])))
-        if run_UPGA_J_GradReuse_J10 == 1 and 'rho_F_UPGA_J_GradReuse_J10' in globals():
-            rho_groups.append(('J=10', float(np.asarray(rho_F_UPGA_J_GradReuse_J10).reshape(-1)[0]),
-                               float(np.asarray(rho_W_UPGA_J_GradReuse_J10).reshape(-1)[0])))
-        if run_UPGA_J_GradReuse_SC == 1 and 'rho_F_UPGA_J_GradReuse_SC' in globals():
-            rho_groups.append(('SC, J=5', float(np.asarray(rho_F_UPGA_J_GradReuse_SC).reshape(-1)[0]),
-                               float(np.asarray(rho_W_UPGA_J_GradReuse_SC).reshape(-1)[0])))
-
-        if rho_groups:
-            x = np.arange(len(rho_groups))
-            width = 0.35
-            rho_F_vals = [g[1] for g in rho_groups]
-            rho_W_vals = [g[2] for g in rho_groups]
-            bars_F = ax1.bar(x - width / 2, rho_F_vals, width, color='steelblue', label=r'$\rho_{\mathsf{F}}$')
-            bars_W = ax1.bar(x + width / 2, rho_W_vals, width, color='darkorange', label=r'$\rho_{\mathsf{W}}$')
-            ax1.set_xticks(x)
-            ax1.set_xticklabels([g[0] for g in rho_groups], fontsize=12)
-            ax1.set_ylim(0.0, 1.05)
-            ax1.set_ylabel(r'Avoided-gradient fraction', fontsize=13)
-            ax1.set_title('(b)', fontsize=13)
-            ax1.grid(True, axis='y')
-            ax1.legend(loc='best', fontsize=10, frameon=False)
-            for bars in (bars_F, bars_W):
-                for bar in bars:
-                    height = bar.get_height()
-                    ax1.text(bar.get_x() + bar.get_width() / 2.0, height + 0.02,
-                             f'{height:.2f}', ha='center', va='bottom', fontsize=9)
-        else:
-            ax1.text(0.5, 0.5, 'No $\\rho$ statistics available', ha='center', va='center', transform=ax1.transAxes)
-            ax1.set_axis_off()
-
-        fig.tight_layout()
-        fig_path = directory_result + 'gradreuse_obj_rho_' + str(Nt) + '_' + str(OMEGA)
-        fig.savefig(fig_path + '.png', bbox_inches='tight', pad_inches=0.02)
-        fig.savefig(fig_path + '.eps', bbox_inches='tight', pad_inches=0.02)
+            plt.plot(iter_outer_x, obj_gr_j10, '-v', markevery=5, color='olive', linewidth=3, markersize=7, label=label_UPGA_J_GradReuse_J10)
+        if run_UPGA_J_GradReuse_J10_untrained == 1:
+            obj_gr_j10_u = OMEGA * rate_iter_UPGA_J_GradReuse_J10_untrained + crb_iter_UPGA_J_GradReuse_J10_untrained
+            plt.plot(iter_outer_x, obj_gr_j10_u, '-.s', markevery=5, color='teal', linewidth=3, markersize=7, label=label_UPGA_J_GradReuse_J10_untrained)
+        if run_UPGA_J_GradReuse_J10_noguard == 1:
+            obj_gr_j10_ng = OMEGA * rate_iter_UPGA_J_GradReuse_J10_noguard + crb_iter_UPGA_J_GradReuse_J10_noguard
+            plt.plot(iter_outer_x, obj_gr_j10_ng, ':d', markevery=5, color='brown', linewidth=3, markersize=7, label=label_UPGA_J_GradReuse_J10_noguard)
+        plt.xlabel(r'Outer-layer index, $i$', fontsize=14)
+        plt.ylabel(r'$\omega R + \log(\mathrm{CRLB}^{-1})$', fontsize=14)
+        plt.grid(True)
+        safe_legend(loc='upper center', bbox_to_anchor=(0.5, -0.12), fontsize=11, labelspacing=0.1, ncol=2, frameon=False, columnspacing=0.6,)
+        fig_path = directory_result + 'gradreuse_obj_' + str(Nt) + '_' + str(OMEGA)
+        plt.savefig(fig_path + '.png', bbox_inches='tight', pad_inches=0.02)
+        plt.savefig(fig_path + '.eps', bbox_inches='tight', pad_inches=0.02)
         journal_fig_dir = os.path.join('journal_paper', 'figures')
         if os.path.isdir(journal_fig_dir):
-            fig.savefig(os.path.join(journal_fig_dir, 'fig6_gradreuse.png'), bbox_inches='tight', pad_inches=0.02)
-            fig.savefig(os.path.join(journal_fig_dir, 'fig6_gradreuse.eps'), bbox_inches='tight', pad_inches=0.02)
+            plt.savefig(os.path.join(journal_fig_dir, 'fig6_gradreuse.png'), bbox_inches='tight', pad_inches=0.02)
+            plt.savefig(os.path.join(journal_fig_dir, 'fig6_gradreuse.eps'), bbox_inches='tight', pad_inches=0.02)
         print(f'Saved GradReuse Fig.5 to {fig_path}.png/.eps')
 
     # if not init_compare_curves:

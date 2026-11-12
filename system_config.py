@@ -12,7 +12,7 @@ print(f"Using device: {device}")
 
 #/////////////////////////// CONSIONDER SCHEMES /////////////////////////////////////////////////////////
 run_conv_PGA = 0           # Conventional PGA without unfolding
-run_conv_PGA_J5 = 1        # Conventional PGA with setting J = 5
+run_conv_PGA_J5 = 0        # Conventional PGA with setting J = 5
 run_conv_PGA_J10 = 0        # Conventional PGA with setting J = 10
 run_conv_PGA_J20 = 0
 run_conv_PGA_J10_PC = 0    # Conventional PGA with J = 10 and partial coupling (PC) 
@@ -38,6 +38,9 @@ run_UPGA_J10_SC = 0                  # Sub-connected UPGA (fixed-block S init, J
 run_UPGA_J_GradReuse_J5 = 0             # Unfolded PGA with lazy gradient reuse (J = 5)
 run_UPGA_J_GradReuse_J10 = 1             # Unfolded PGA with lazy gradient reuse (J = 10)
 run_UPGA_J_GradReuse_SC = 0          # Sub-connected UPGA with lazy gradient reuse (J = 5)
+# GradReuse ablations for Fig.5 (paired with GradReuse J10 by default)
+run_UPGA_J_GradReuse_J10_untrained = 1  # GradReuse + objective guard, fixed (untrained) step sizes
+run_UPGA_J_GradReuse_J10_noguard = 1    # GradReuse with trained steps, no F/W objective-guard checks
 
 run_init_random = 0                  # Random unit-modulus analog init
 run_init_svd = 0                     # SVD of H analog init
@@ -149,6 +152,10 @@ step_size_UPGA_J20_decay = torch.full([n_iter_inner_J20, n_iter_outer, K + 1], s
 # GradReuse reuses Fixed-UPGA step-size shapes; reuse logic is inside execute_PGA
 step_size_UPGA_J_GradReuse_J5 = torch.full([n_iter_inner_J5, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
 step_size_UPGA_J_GradReuse_J10 = torch.full([n_iter_inner_J10, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
+# Ablation: untrained GradReuse keeps the fixed step-size tensor (never load a checkpoint)
+step_size_UPGA_J_GradReuse_J10_untrained = torch.full([n_iter_inner_J10, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=False)
+# Ablation: no-guard uses the same shape as trained GradReuse J10
+step_size_UPGA_J_GradReuse_J10_noguard = torch.full([n_iter_inner_J10, n_iter_outer, K + 1], step_size_fixed, device=device, requires_grad=True)
 # Sub-connected UPGA: (J, I, 3) = (F, S, W) step sizes
 step_size_UPGA_J5_SC = torch.full([n_iter_inner_J5, n_iter_outer, 3], step_size_fixed, device=device, requires_grad=True)
 step_size_UPGA_J10_SC = torch.full([n_iter_inner_J10, n_iter_outer, 3], step_size_fixed, device=device, requires_grad=True)
@@ -237,7 +244,7 @@ label_UPGA_J1 = r'Fixed-UPGA,$120$ inner layers'
 label_UPGA_J4 = r'Fixed-UPGA, $480$ inner layers'
 label_UPGA_J5 = r'Fixed-UPGA, $600$ inner layers'
 label_UPGA_J6 = r'Fixed-UPGA, $720$ inner layers'
-label_UPGA_J10 = r'Fixed-UPGA, $1200$ inner layers'
+label_UPGA_J10 = r'Fixed-UPGA, $J=10$'
 label_UPGA_J20 = r'Fixed-UPGA, $2400$ inner layers'
 
 label_UPGA_J10_PC = r'UPGA ' + '$(J = ' + str(n_iter_inner_J10) + ', PC)$'
@@ -260,7 +267,9 @@ label_UPGA_J5_decay = r'Dynamic-UPGA'
 label_UPGA_J10_decay = r'Dynamic-UPGA'
 label_UPGA_J20_decay = r'Dynamic-UPGA'
 label_UPGA_J_GradReuse_J5 = r'GradReuse-UPGA, $600$ inner layers'
-label_UPGA_J_GradReuse_J10 = r'GradReuse-UPGA, $1200$ inner layers'
+label_UPGA_J_GradReuse_J10 = r'Reused-gradient UPGA, $J=10$'
+label_UPGA_J_GradReuse_J10_untrained = r'Reused-gradient UPGA (untrained steps), $J=10$'
+label_UPGA_J_GradReuse_J10_noguard = r'Reused-gradient UPGA (no guard), $J=10$'
 label_ZF = 'ZF (digital, comm. only)'
 label_SCA = 'SCA-ManOpt (converged)'
 label_PGA_Conv_J5_LS = r'Conv. PGA, $600$ inner iterations, line search'
