@@ -774,6 +774,36 @@ if plot_figure == 1:
     plt.savefig(directory_result + 'objective_vs_iter_' + str(Nt) + '_' + str(OMEGA) + '.png',bbox_inches='tight',pad_inches=0.02)
     plt.savefig(directory_result + 'objective_vs_iter_' + str(Nt) + '_' + str(OMEGA) + '.eps',bbox_inches='tight',pad_inches=0.02)
 
+    # ===================== Adaptive inner depth Jhat vs outer layer (Dynamic-UPGA) =====================
+    # Uses model.inner_iter_history filled by PGA_Unfold_JX_decay.execute_PGA (one Jhat per outer layer).
+    plot_inner_depth = (
+        (run_UPGA_J5_decay == 1 and 'inner_iter_history_UPGA_J5_decay' in globals())
+        or (run_UPGA_J10_decay == 1 and 'inner_iter_history_UPGA_J10_decay' in globals())
+        or (run_UPGA_J20_decay == 1 and 'inner_iter_history_UPGA_J20_decay' in globals())
+    )
+    if plot_inner_depth:
+        plt.figure(figsize=(8, 4.2))
+        if run_UPGA_J5_decay == 1 and 'inner_iter_history_UPGA_J5_decay' in globals():
+            jhat_j5 = np.asarray(inner_iter_history_UPGA_J5_decay, dtype=np.int64).reshape(-1)
+            plt.step(np.arange(len(jhat_j5)), jhat_j5, where='post', color='green', linewidth=2.5,
+                     linestyle='--', label=label_UPGA_J5_decay)
+        if run_UPGA_J10_decay == 1 and 'inner_iter_history_UPGA_J10_decay' in globals():
+            jhat_j10 = np.asarray(inner_iter_history_UPGA_J10_decay, dtype=np.int64).reshape(-1)
+            plt.step(np.arange(len(jhat_j10)), jhat_j10, where='post', color='green', linewidth=2.5,
+                     linestyle='-', label=label_UPGA_J10_decay)
+        if run_UPGA_J20_decay == 1 and 'inner_iter_history_UPGA_J20_decay' in globals():
+            jhat_j20 = np.asarray(inner_iter_history_UPGA_J20_decay, dtype=np.int64).reshape(-1)
+            plt.step(np.arange(len(jhat_j20)), jhat_j20, where='post', color='green', linewidth=2.5,
+                     linestyle=':', label=label_UPGA_J20_decay)
+        plt.xlabel(r'Outer-layer index, $i$', fontsize=14)
+        plt.ylabel(r'Inner iterations, $\hat{J}_{(i)}$', fontsize=14)
+        plt.grid(True)
+        safe_legend(loc='best', fontsize=11, labelspacing=0.1, frameon=False)
+        fig_path = directory_result + 'inner_iters_vs_outer_' + str(Nt) + '_' + str(OMEGA)
+        plt.savefig(fig_path + '.png', bbox_inches='tight', pad_inches=0.02)
+        plt.savefig(fig_path + '.eps', bbox_inches='tight', pad_inches=0.02)
+        print(f'Saved inner-depth plot to {fig_path}.png/.eps')
+
     # ===================== Fig.5 GradReuse: objective vs I (C2 ablations, J=10) =====================
     # Curves: Fixed-UPGA J10, GradReuse J10, untrained-step GradReuse, no-guard GradReuse.
     plot_gradreuse_fig = (
