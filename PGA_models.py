@@ -445,6 +445,8 @@ class PGA_Unfold_J_GradReuse(nn.Module):
         self.alpha = alpha
         self.grad_recalc_count = 0
         self.W_grad_recalc_count = 0
+        self.rho_F = 0.0  # fraction of accepted analog reuse attempts
+        self.rho_W = 0.0  # fraction of accepted digital reuse attempts
 
     def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True, init_method=None):
 
@@ -557,13 +559,15 @@ class PGA_Unfold_J_GradReuse(nn.Module):
 
         self.grad_recalc_count = grad_recalc
         self.W_grad_recalc_count = W_grad_recalc
+        max_possible_F = n_iter_outer * max(self.step_size.shape[0] - 1, 0)
+        max_possible_W = max(n_iter_outer - 1, 0)
+        self.rho_F = float(1.0 - grad_recalc / max(max_possible_F, 1))
+        self.rho_W = float(1.0 - W_grad_recalc / max(max_possible_W, 1))
         if track_metrics:
-            max_possible_F = n_iter_outer * max(self.step_size.shape[0] - 1, 0)
-            max_possible_W = max(n_iter_outer - 1, 0)
             print(f'[GradReuse] F fallback recomputations = {grad_recalc} / {max_possible_F} '
-                  f'({100.0 * grad_recalc / max(max_possible_F, 1):.1f}%)')
+                  f'({100.0 * grad_recalc / max(max_possible_F, 1):.1f}%), rho_F={self.rho_F:.3f}')
             print(f'[GradReuse] W fallback recomputations = {W_grad_recalc} / {max_possible_W} '
-                  f'({100.0 * W_grad_recalc / max(max_possible_W, 1):.1f}%)')
+                  f'({100.0 * W_grad_recalc / max(max_possible_W, 1):.1f}%), rho_W={self.rho_W:.3f}')
 
         ## average over the batch
         rate_over_iters = rate_over_iters.mean(dim=-1, keepdim=True)  # dimension: (n_iter_outer, 1, 1)
@@ -706,6 +710,8 @@ class PGA_Unfold_J_GradReuse_SC(nn.Module):
         self.alpha = alpha
         self.grad_recalc_count = 0
         self.W_grad_recalc_count = 0
+        self.rho_F = 0.0
+        self.rho_W = 0.0
 
         n_ant = Nt if n_antennas is None else n_antennas
         n_rf = Nrf if n_rf_chains is None else n_rf_chains
@@ -835,13 +841,15 @@ class PGA_Unfold_J_GradReuse_SC(nn.Module):
 
         self.grad_recalc_count = grad_recalc
         self.W_grad_recalc_count = W_grad_recalc
+        max_possible_F = n_iter_outer * max(self.step_size.shape[0] - 1, 0)
+        max_possible_W = max(n_iter_outer - 1, 0)
+        self.rho_F = float(1.0 - grad_recalc / max(max_possible_F, 1))
+        self.rho_W = float(1.0 - W_grad_recalc / max(max_possible_W, 1))
         if track_metrics:
-            max_possible_F = n_iter_outer * max(self.step_size.shape[0] - 1, 0)
-            max_possible_W = max(n_iter_outer - 1, 0)
             print(f'[GradReuse-SC] F/S fallback recomputations = {grad_recalc} / {max_possible_F} '
-                  f'({100.0 * grad_recalc / max(max_possible_F, 1):.1f}%)')
+                  f'({100.0 * grad_recalc / max(max_possible_F, 1):.1f}%), rho_F={self.rho_F:.3f}')
             print(f'[GradReuse-SC] W fallback recomputations = {W_grad_recalc} / {max_possible_W} '
-                  f'({100.0 * W_grad_recalc / max(max_possible_W, 1):.1f}%)')
+                  f'({100.0 * W_grad_recalc / max(max_possible_W, 1):.1f}%), rho_W={self.rho_W:.3f}')
 
         rate_over_iters = rate_over_iters.mean(dim=-1, keepdim=True)
         crb_over_iters = crb_over_iters.mean(dim=-1, keepdim=True)

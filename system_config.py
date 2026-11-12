@@ -20,7 +20,7 @@ run_UPGA_J1 = 0            # Unfolded PGA without any modification (J = 1)
 run_UPGA_J4 = 0
 run_UPGA_J5 = 0            # Unfolded PGA with setting J = 5
 run_UPGA_J6 = 0            # Unfolded PGA with setting J = 6 (for ablation on inner iteration number)
-run_UPGA_J10 = 0           # Unfolded PGA with setting J = 10
+run_UPGA_J10 = 1           # Unfolded PGA with setting J = 10 (Fixed baseline for GradReuse Fig.5)
 run_UPGA_J20 = 0           # Unfolded PGA with setting J = 20
 
 run_UPGA_J5_decay = 0        # Unfolded PGA with decaying inner iterations (J_max=5 → 1)
