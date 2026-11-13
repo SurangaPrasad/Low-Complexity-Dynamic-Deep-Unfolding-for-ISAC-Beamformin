@@ -884,8 +884,8 @@ class PGA_Unfold_JX_decay(nn.Module):
     then run exactly ``Jhat`` inner analog updates (no mid-loop early stop).
 
     ``alpha`` is a trainable scalar mapped into ``[alpha_min, alpha_max]`` via a
-    sigmoid of ``alpha_raw``. Train with a complexity penalty on the soft depth
-    ``mean(Jhat_soft)/J_max`` so alpha does not collapse to always using J_max.
+    sigmoid of ``alpha_raw``, initialized to ``J_max``. Train with a complexity
+    penalty on the soft depth so alpha does not collapse to always using J_max.
     """
 
     def __init__(self, step_size, alpha=None, eps=1e-12, J_min=2, alpha_min=None, alpha_max=None):
@@ -896,9 +896,11 @@ class PGA_Unfold_JX_decay(nn.Module):
         self.jhat_soft_history = []
         self.eps = eps
         self.J_min = J_min
+        J_max = int(step_size.shape[0])
         self.alpha_min = float(alpha_min if alpha_min is not None else alpha_min_decay)
-        self.alpha_max = float(alpha_max if alpha_max is not None else alpha_max_decay)
-        alpha_init = float(alpha if alpha is not None else alpha_init_decay)
+        # Upper bound must allow initializing alpha at J_max.
+        self.alpha_max = float(alpha_max if alpha_max is not None else max(alpha_max_decay, J_max))
+        alpha_init = float(alpha if alpha is not None else J_max)
         alpha_init = min(max(alpha_init, self.alpha_min + 1e-4), self.alpha_max - 1e-4)
         p = (alpha_init - self.alpha_min) / (self.alpha_max - self.alpha_min)
         raw_init = math.log(p / (1.0 - p))
