@@ -91,6 +91,13 @@ n_iter_inner_J6 = 6     # Number of inner iterations (J = 6)
 n_iter_inner_J10 = 10  # Number of inner iterations (J = 10)
 n_iter_inner_J20 = 20   # Number of inner iterations (J = 20)
 
+# Dynamic-UPGA: trainable alpha bounds and complexity weight
+# Loss = L_ISAC + lambda_cost * mean(Jhat_soft) / J_max
+alpha_init_decay = 4.0
+alpha_min_decay = 1.0
+alpha_max_decay = 15.0
+lambda_cost = 1.0
+
 
 # ============================ TUNING PARAMETERS ===========================
 multiplication_factor = 2

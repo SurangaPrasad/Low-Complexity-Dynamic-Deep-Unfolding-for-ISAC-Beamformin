@@ -98,8 +98,14 @@ def run_UPGA_decay(step_size_UPGA_decay):
 
             __, __, F_over_iters, W_over_iters, A_dot_over_iters = model_UPGA_decay.execute_PGA(H, xi_0, theta_desire_batch, R_N_inv, snr_train, n_iter_outer, step_size_UPGA_decay.shape[0], track_metrics=False)
 
-            loss = get_sum_loss(F_over_iters, W_over_iters, H, xi_0, A_dot_over_iters, R_N_inv, snr_train)
-            print(f"Batch [{i_batch//batch_size+1}/{len(H_train[0])//batch_size}], Loss: {loss.item():.4f}")
+            loss_isac = get_sum_loss(F_over_iters, W_over_iters, H, xi_0, A_dot_over_iters, R_N_inv, snr_train)
+            loss_cost = lambda_cost * model_UPGA_decay.mean_soft_depth_fraction()
+            loss = loss_isac + loss_cost
+            print(
+                f"Batch [{i_batch//batch_size+1}/{len(H_train[0])//batch_size}], "
+                f"Loss: {loss.item():.4f} (ISAC {loss_isac.item():.4f}, cost {loss_cost.item():.4f}, "
+                f"alpha {model_UPGA_decay.alpha.item():.3f})"
+            )
 
             optimizer.zero_grad()
             loss.backward()
@@ -108,11 +114,14 @@ def run_UPGA_decay(step_size_UPGA_decay):
 
         avg_loss = sum(batch_losses) / len(batch_losses)
         epoch_losses.append(avg_loss)
-        print(f"Epoch [{i_epoch+1}/{n_epoch}], Average Loss: {avg_loss:.4f}")
+        print(
+            f"Epoch [{i_epoch+1}/{n_epoch}], Average Loss: {avg_loss:.4f}, "
+            f"alpha={model_UPGA_decay.alpha.item():.3f}"
+        )
 
     save_path = model_file(f'UPGA_J{step_size_UPGA_decay.shape[0]}_decay')
     torch.save(model_UPGA_decay.state_dict(), save_path)
-    print(f'Saved {save_path}')
+    print(f'Saved {save_path} (final alpha={model_UPGA_decay.alpha.item():.3f})')
 
 
 def run_UPGA_subconnected(step_size_UPGA):

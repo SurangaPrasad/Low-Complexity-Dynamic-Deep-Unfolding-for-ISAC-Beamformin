@@ -882,33 +882,55 @@ class PGA_Unfold_JX_decay(nn.Module):
         Jhat = clip(ceil(alpha * g^F), J_min, J_max)
 
     then run exactly ``Jhat`` inner analog updates (no mid-loop early stop).
-    Tune ``alpha`` so early residuals map near ``J_max`` and late ones near ``J_min``.
+
+    ``alpha`` is a trainable scalar mapped into ``[alpha_min, alpha_max]`` via a
+    sigmoid of ``alpha_raw``. Train with a complexity penalty on the soft depth
+    ``mean(Jhat_soft)/J_max`` so alpha does not collapse to always using J_max.
     """
 
-    def __init__(self, step_size, alpha=4.0, eps=1e-12, J_min=2, eta=0.95, eta_temperature=0.05):
+    def __init__(self, step_size, alpha=None, eps=1e-12, J_min=2, alpha_min=None, alpha_max=None):
         super().__init__()
 
         self.step_size = nn.Parameter(step_size)  # parameters = (mu, lambda)
         self.inner_iter_history = []
+        self.jhat_soft_history = []
         self.eps = eps
         self.J_min = J_min
-        self.alpha = alpha
-        # Kept so older call sites / checkpoints that pass eta stay valid.
-        self.eta = eta
-        self.eta_temperature = eta_temperature
+        self.alpha_min = float(alpha_min if alpha_min is not None else alpha_min_decay)
+        self.alpha_max = float(alpha_max if alpha_max is not None else alpha_max_decay)
+        alpha_init = float(alpha if alpha is not None else alpha_init_decay)
+        alpha_init = min(max(alpha_init, self.alpha_min + 1e-4), self.alpha_max - 1e-4)
+        p = (alpha_init - self.alpha_min) / (self.alpha_max - self.alpha_min)
+        raw_init = math.log(p / (1.0 - p))
+        self.alpha_raw = nn.Parameter(torch.tensor(raw_init, dtype=REAL_DTYPE, device=step_size.device))
 
-    def load_state_dict(self, state_dict, strict=True):
-        # Drop trainable-eta keys from older decay checkpoints.
-        if any(k == 'eta' or k.endswith('.eta') for k in state_dict):
-            state_dict = {k: v for k, v in state_dict.items() if k != 'eta' and not k.endswith('.eta')}
-        return super().load_state_dict(state_dict, strict=strict)
+    @property
+    def alpha(self):
+        return self.alpha_min + (self.alpha_max - self.alpha_min) * torch.sigmoid(self.alpha_raw)
 
     def _n_inner_from_grad(self, grad_F_J):
+        """Return (n_inner_hard, jhat_for_cost).
+
+        Hard depth uses a clipped ceil. The cost tensor is only lower-clamped so
+        that an oversized alpha still receives a downward gradient when the hard
+        depth is saturated at J_max.
+        """
         J_max = self.step_size.shape[0]
         J_min = min(self.J_min, J_max)
-        g_F = torch.linalg.matrix_norm(grad_F_J, ord='fro').mean()
-        n_inner = int(torch.ceil(self.alpha * g_F).item())
-        return max(J_min, min(J_max, n_inner))
+        g_F = torch.linalg.matrix_norm(grad_F_J, ord='fro').mean().detach()
+        jhat_pre = self.alpha * g_F
+        jhat_for_cost = torch.clamp(jhat_pre, min=float(J_min))
+        jhat_hard = torch.clamp(jhat_pre, min=float(J_min), max=float(J_max))
+        n_inner = int(torch.ceil(jhat_hard).item())
+        n_inner = max(J_min, min(J_max, n_inner))
+        return n_inner, jhat_for_cost
+
+    def mean_soft_depth_fraction(self):
+        """Differentiable mean(Jhat) / J_max for the complexity penalty (may exceed 1)."""
+        if not self.jhat_soft_history:
+            return torch.zeros((), device=self.alpha_raw.device, dtype=REAL_DTYPE)
+        J_max = float(self.step_size.shape[0])
+        return torch.stack(self.jhat_soft_history).mean() / J_max
 
     # =========== Projection Gradient Ascent execution ===================
     def execute_PGA(self, H, xi_0, theta_desire_batch, R_N_inv, Pt, n_iter_outer, n_iter_inner, track_metrics=True, init_method=None):
@@ -923,6 +945,7 @@ class PGA_Unfold_JX_decay(nn.Module):
         W_over_iters = []
         A_dot_over_iters = []
         self.inner_iter_history = []
+        self.jhat_soft_history = []
 
         def inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt):
             for jj in range(n_inner):
@@ -945,8 +968,9 @@ class PGA_Unfold_JX_decay(nn.Module):
             if grad_F_com.isnan().any() or grad_F_crb.isnan().any():
                 print('Error NaN gradients before adaptive J!!!!!!!!!!!!!!!')
             grad_F_J = WEIGHT_F_COM * grad_F_com + WEIGHT_F_CRB * grad_F_crb
-            n_inner = self._n_inner_from_grad(grad_F_J)
+            n_inner, jhat_soft = self._n_inner_from_grad(grad_F_J)
             self.inner_iter_history.append(n_inner)
+            self.jhat_soft_history.append(jhat_soft)
 
             if track_metrics:
                 F = inner_f_update(F, W, H, xi_0, A_dot, R_N_inv, n_inner, Pt)
